@@ -1,0 +1,109 @@
+#!/bin/sh
+set -e
+
+# Debian Package Builder for Notolog Editor
+# Build scripts and packaging for the Notolog Editor Debian release.
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+# Application variables
+APP_GROUP="notolog"
+
+# Define the installation paths
+APP_DIR="/usr/lib/notolog"
+RUNTIME_DIR="$APP_DIR/runtime"
+BINARY_PATH="/usr/bin/notolog"
+DESKTOP_FILE="/usr/share/applications/notolog.desktop"
+
+# Check if the main executable exists
+if [ ! -f "$BINARY_PATH" ]; then
+    echo "Error: The main executable '$BINARY_PATH' was not found."
+    exit 1
+fi
+
+# Ensure binary is executable
+[ -x "$BINARY_PATH" ] || { echo "Setting executable permission on $BINARY_PATH"; chmod +x "$BINARY_PATH"; }
+
+echo ""
+echo "Creating application group..."
+
+# Create the group if it doesn't already exist
+if ! getent group "$APP_GROUP" >/dev/null; then
+    echo "Group '$APP_GROUP' does not exist, creating it now..."
+    addgroup --system "$APP_GROUP"
+else
+    echo "Group '$APP_GROUP' already exists."
+fi
+
+echo ""
+
+# Determine the user who invoked sudo or fallback to $USER
+if [ -n "$SUDO_USER" ]; then
+    TARGET_USER="$SUDO_USER"
+elif [ -n "$USER" ]; then
+    TARGET_USER="$USER"
+else
+    echo "Could not determine the user."
+    exit 1
+fi
+
+# Validate user exists
+if ! id "$TARGET_USER" >/dev/null 2>&1; then
+    echo "User '$TARGET_USER' does not exist."
+    exit 1
+fi
+
+# Add to group only if user is not already a member
+if id -nG "$TARGET_USER" | grep -qw "$APP_GROUP"; then
+    echo "User '$TARGET_USER' is already a member of '$APP_GROUP'."
+else
+    if usermod -a -G "$APP_GROUP" "$TARGET_USER"; then
+        echo "User '$TARGET_USER' added to group '$APP_GROUP'."
+    else
+        echo "(i) Could not add user '$TARGET_USER' to group '$APP_GROUP'."
+    fi
+fi
+
+echo ""
+
+# Set ownership and permissions explicitly (avoid recursive-change warning)
+find "$RUNTIME_DIR" -type d -exec chown "root:$APP_GROUP" {} \;
+find "$RUNTIME_DIR" -type f -exec chown "root:$APP_GROUP" {} \;
+find "$RUNTIME_DIR" -type d -exec chmod 775 {} \;
+find "$RUNTIME_DIR" -type f -exec chmod 664 {} \;
+
+# Set proper permissions for desktop file
+chown "root:$APP_GROUP" "$DESKTOP_FILE"
+chmod 644 "$DESKTOP_FILE"
+
+echo "(i) You may need to log out and back in, or run 'newgrp $APP_GROUP' for changes to take effect."
+echo ""
+
+command -v notolog >/dev/null 2>&1 || {
+    echo "Error: 'notolog' command not found. Ensure it is installed and in PATH." >&2
+    exit 1
+}
+
+notolog -v || {
+    echo "Error: Cannot perform the application version check." >&2
+    exit 1
+}
+
+echo "Installation completed."
+echo ""
+
+printf "\033[94m"
+printf "▒█▄░▒█ ▒█▀▀▀▄ ▀▀█▀▀ ▒█▀▀▀▄ ▒█░░░ ▒█▀▀▀▄ ▒█▀▀█░\n"
+printf "\033[95m"
+printf "▒█▒█▒█ ▒█░░▒█ ░▒█░░ ▒█░░▒█ ▒█░░░ ▒█░░▒█ ▒█░░▄▄\n"
+printf "\033[91m"
+printf "▒█░░▀█ ▒█▄▄▄█ ░▒█░░ ▒█▄▄▄█ ▒█▄▄▄ ▒█▄▄▄█ ▒█▄▄▄█\n"
+printf "\033[0m"
+echo ""
+
+# Exit with 0 to indicate success, use 1 to indicate an error.
+exit 0

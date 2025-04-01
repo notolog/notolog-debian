@@ -1,0 +1,148 @@
+# Debian Package Builder for Notolog Editor
+# Build scripts and packaging for the Notolog Editor Debian release.
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+name: Build Debian Package
+
+on:
+  workflow_dispatch:   # Allows the workflow to be triggered manually
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+env:
+  APP_GIT_REPOSITORY: "notolog/notolog-editor"
+  APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
+  PACKAGE_NAME: "notolog-editor"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # But by default will use an x86_64 runner
+
+    steps:
+      - name: Get system info
+        run: |
+          PLATFORM_ARCH=$(uname -m)
+          echo "$PLATFORM_ARCH"
+          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> $GITHUB_ENV
+          uname -a
+
+      - name: Get the latest OnnxRuntime version
+        run: |
+          LATEST_RELEASE_VERSION_TAG=$(curl -s ${{ env.APP_RELEASES_URL }} | grep tag_name | head -n 1 | cut -d '"' -f 4)
+          echo "$LATEST_RELEASE_VERSION_TAG"
+          echo "PACKAGE_VERSION=$LATEST_RELEASE_VERSION_TAG" >> $GITHUB_ENV
+
+      - name: Checkout builder repository
+        uses: actions/checkout@v4
+
+      - name: Checkout project source into ./src (shallow clone)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.APP_GIT_REPOSITORY }}
+          path: src
+          fetch-tags: true
+          ref: refs/tags/${{ env.PACKAGE_VERSION }}
+          fetch-depth: 1  # Shallow clone (no .git history)
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python3 --version
+          python3 -m pip install --upgrade pip
+          pip install poetry-core build pyinstaller reuse
+
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian
+          # Optional: install all declared build dependencies from debian/control
+          sudo apt-get build-dep .
+
+      - name: Print working directory
+        run: pwd
+
+      - name: Show package version
+        run: |
+          echo "Building version: ${{ env.PACKAGE_VERSION }}"
+          echo "Repository: ${{ env.APP_GIT_REPOSITORY }}"
+
+      - name: Build Debian package
+        run: |
+          cd ./pyinstaller
+
+          # Ensure scripts are executable
+          chmod +x build.sh clean-build.sh
+
+          # Run the main build script
+          ./build.sh
+
+          # Verify PIE hardening
+          echo "🔍 Verifying PIE hardening..."
+          hardening-check ./dist/notolog || {
+            echo "❌ PIE hardening check failed."
+            exit 1
+          }
+
+          # Clean up PyInstaller build artifacts
+          ./clean-build.sh
+
+      - name: Check SPDX compliance on source tree
+        run: |
+         reuse download --all
+         reuse lint || (echo '❌ SPDX compliance failed.' && exit 1)
+
+      - name: Copy .deb, .buildinfo, and .changes files
+        run: |
+          # Move to the workspace parent directory
+          cd ..
+          echo "Working from: $(pwd)"
+
+          DEST="${{ github.workspace }}/build/debian"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+
+          # Require .deb file
+          # Alternatively: DEB_FILE=$(ls ../ | grep -E "^notolog_.*_amd64\.deb$")
+          DEB_FILE=$(find . -maxdepth 1 -type f -name "notolog*.deb" | head -n 1)
+          if [ -z "$DEB_FILE" ]; then
+            echo "❌ No .deb file found. Cannot continue."
+            exit 1
+          fi
+          cp "$DEB_FILE" "$DEST/"
+          echo "✅ Copied .deb: $DEB_FILE"
+
+          # Optional files
+          for EXT in buildinfo changes; do
+            FILE=$(find . -maxdepth 1 -type f -name "notolog*.${EXT}" | head -n 1)
+            if [ -n "$FILE" ]; then
+              cp "$FILE" "$DEST/"
+              echo "✅ Copied .${EXT}: $FILE"
+            else
+              echo "⚠️ No .${EXT} file found."
+            fi
+          done
+
+          # GitHub Actions steps do not persist the working directory between steps
+          echo "📦 Final artifact contents:"
+          ls -lh "$DEST"
+
+      - name: Upload Debian package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: notolog-${{ env.PACKAGE_VERSION }}
+          path: build/debian/*
+
+      - name: Lint Debian package
+        run: lintian build/debian/*.deb || true
+
+      - name: Validate changelog
+        run: dpkg-parsechangelog

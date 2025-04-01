@@ -1,0 +1,26 @@
+# Debian Package Builder for Notolog Editor
+# Build scripts and packaging for the Notolog Editor Debian release.
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+# Ensure all text files have LF line endings on checkout
+*.txt text eol=lf
+
+# Ensure all script files have CRLF line endings on Windows and LF on Linux/Mac
+*.sh text eol=lf
+*.bat text eol=crlf
+
+# To ensure your Markdown and TOML files retain clean LF endings cross-platform.
+*.md text eol=lf
+*.toml text eol=lf
+
+# Treat all jpg and png files as binary
+*.jpg binary
+*.png binary
+
+# Use the union merge strategy for changelogs
+CHANGELOG.md merge=union

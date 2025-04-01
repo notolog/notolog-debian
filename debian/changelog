@@ -1,0 +1,6 @@
+notolog (1.1.6) unstable; urgency=medium
+
+  * Initial Debian release.
+  * Includes all prior project changes up to version 1.1.6.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Tue, 01 Apr 2025 00:00:00 +0000

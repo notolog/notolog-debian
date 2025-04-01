@@ -1,0 +1,66 @@
+Notolog Editor for Debian
+=========================
+
+This is the Debian package for Notolog Editor - an open-source Markdown editor with integrated AI assistant features. The upstream project is maintained at:
+
+    https://github.com/notolog/notolog-editor
+
+Package Notes
+-------------
+
+- The binary is installed at: /usr/bin/notolog
+- Application runtime files are extracted at first launch to: /usr/lib/notolog/runtime
+- Documentation and licenses are located in: /usr/share/doc/notolog/
+
+Runtime Behavior
+----------------
+
+- The application will create a per-user config directory at first launch, typically ~/.config/Notolog.
+- Group-based permissions may apply to runtime directory files (see group `notolog`).
+- Log out or run `newgrp notolog` after install to apply group membership changes.
+
+Licensing Summary
+-----------------
+
+This package includes components licensed under:
+
+- MIT
+- BSD-2-Clause, BSD-3-Clause
+- Apache-2.0, Apache-2.0 WITH LLVM-exception
+- LGPL-3.0-or-later
+- GPL-3.0-with-GCC-exception
+- OFL-1.1
+- Python Software Foundation License
+
+For details, refer to:
+- /usr/share/doc/notolog/ThirdPartyNotices.md
+- /usr/share/doc/notolog/copyright
+
+Developer & Build Info
+----------------------
+
+To build the package from source:
+
+    sudo apt install build-essential devscripts fakeroot debhelper
+    dpkg-buildpackage -us -uc -b
+
+The PyInstaller onefile binary is built prior to packaging and included under /usr/lib/notolog/runtime/.
+
+Additional Notes
+----------------
+
+- `llama_cpp` and backend libraries are bundled and dynamically linked.
+- Qt platform plugins may require `libxcb-cursor0` or related dependencies.
+- Check the system's PIE/hardening status with `hardening-check /usr/bin/notolog`
+
+Support & Feedback
+------------------
+
+To report packaging issues, visit:
+
+    https://github.com/notolog/notolog-debian/issues
+
+For application bugs or feature requests:
+
+    https://github.com/notolog/notolog-editor/issues
+

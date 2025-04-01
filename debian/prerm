@@ -1,0 +1,55 @@
+#!/bin/bash
+set -e
+
+# Debian Package Builder for Notolog Editor
+# Build scripts and packaging for the Notolog Editor Debian release.
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+APP_NAME="notolog"
+APP_DIR="/usr/lib/notolog"
+SYMLINK="/usr/bin/$APP_NAME"
+ICON_PARENT="/usr/share/$APP_NAME"
+ICON_DIR="$ICON_PARENT/icons"
+ICON_PATH="$ICON_DIR/notolog.png"
+
+# Gracefully stop running instance (if any)
+if pidof "$APP_NAME" > /dev/null 2>&1; then
+    echo "Stopping $APP_NAME before removal..."
+    pkill -TERM -x "$APP_NAME" || echo "Failed to stop $APP_NAME (may not be running)."
+fi
+
+# Remove symlink
+if [ -L "$SYMLINK" ]; then
+    echo "Removing symlink: $SYMLINK"
+    rm -f "$SYMLINK"
+fi
+
+# Remove icon
+if [ -f "$ICON_PATH" ]; then
+    echo "Removing icon: $ICON_PATH"
+    rm -f "$ICON_PATH"
+fi
+
+# Optionally remove empty icon directories
+if [ -d "$ICON_DIR" ] && [ -z "$(ls -A "$ICON_DIR")" ]; then
+    echo "Removing empty icon directory: $ICON_DIR"
+    rmdir "$ICON_DIR"
+fi
+
+if [ -d "$ICON_PARENT" ] && [ -z "$(ls -A "$ICON_PARENT")" ]; then
+    echo "Removing empty icon parent directory: $ICON_PARENT"
+    rmdir "$ICON_PARENT"
+fi
+
+# Remove app directory
+if [ -d "$APP_DIR" ]; then
+    echo "Removing app directory: $APP_DIR"
+    rm -rf "$APP_DIR"
+fi
+
+exit 0

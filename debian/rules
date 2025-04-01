@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+# Debian Package Builder for Notolog Editor
+# Build scripts and packaging for the Notolog Editor Debian release.
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+# Verbose output to help debug build steps
+export DH_VERBOSE = 1
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Ensure the full path exists and copy the binary
+	mkdir -p debian/notolog/usr/bin
+	mkdir -p debian/notolog/usr/lib/notolog/runtime
+	install pyinstaller/dist/notolog debian/notolog/usr/bin/notolog

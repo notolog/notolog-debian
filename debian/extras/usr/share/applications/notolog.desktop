@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Notolog
+GenericName=Notolog Editor
+Comment=Python Markdown Editor
+Exec=/usr/bin/notolog
+StartupWMClass=app.notolog.notolog
+Icon=notolog
+Terminal=false
+Categories=TextEditor;Utility;
+StartupNotify=true
