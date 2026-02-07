@@ -6,7 +6,7 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 #
 # 🛠 Build Commands:
@@ -20,8 +20,10 @@
 #        --add-data="docs/*:docs" \
 #        --add-data="CHANGELOG.md:." \
 #        --add-data="CODE_OF_CONDUCT.md:." \
+#        --add-data="CONTRIBUTING.md:." \
 #        --add-data="LICENSE:." \
 #        --add-data="README.md:." \
+#        --add-data="SECURITY.md:." \
 #        --add-data="ThirdPartyNotices.md:." \
 #        --exclude-module="__pycache__" --exclude-module="*.pyc" \
 #        --add-data="../envs/notolog-new/lib/python3.11/site-packages/emoji:emoji"
@@ -50,8 +52,10 @@ datas = [
     (os.path.join(app_root, 'notolog'), 'notolog'),
     (os.path.join(app_root, 'CHANGELOG.md'), '.'),
     (os.path.join(app_root, 'CODE_OF_CONDUCT.md'), '.'),
+    (os.path.join(app_root, 'CONTRIBUTING.md'), '.'),
     (os.path.join(app_root, 'LICENSE'), '.'),
     (os.path.join(app_root, 'README.md'), '.'),
+    (os.path.join(app_root, 'SECURITY.md'), '.'),
     (os.path.join(app_root, 'ThirdPartyNotices.md'), '.'),
 ]
 binaries = []
@@ -92,7 +96,19 @@ with open(package_config_file_path, "w") as f:
 datas.append((package_config_file_path, '.'))
 
 # Exclude common temporary or compiled Python files
-excludes = ['__pycache__', '*.pyc', '*.pyo']
+# These patterns exclude bytecode and cache from the final binary
+excludes = [
+    '__pycache__',
+    '*.pyc',
+    '*.pyo',
+    '.pytest_cache',
+    '.mypy_cache',
+    '.tox',
+    'tests',
+    'test',
+    '*_test',
+    '*_tests',
+]
 
 # Build Phases
 
@@ -157,4 +173,3 @@ exe = EXE(
     icon=icon_file if sys.platform == 'win32' else None,
     version=version_file_path,  # optional
 )
-

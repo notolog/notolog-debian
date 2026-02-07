@@ -1,6 +1,6 @@
-.TH NOTOLOG 1 "April 2025" "Notolog Editor" "User Commands"
+.TH NOTOLOG 1 "February 2026" "Notolog 1.2.0" "User Commands"
 .SH NAME
-notolog \- launch the Notolog Markdown editor
+notolog \- Markdown editor with AI assistant
 .SH SYNOPSIS
 .B notolog
 .RI [ \-h ]
@@ -11,6 +11,8 @@ is a modern, open-source Markdown editor with AI assistant features, built using
 
 It is a graphical desktop application. Run without arguments to launch the GUI.
 
+Features include syntax highlighting, encryption support, on-device LLM integration (ONNX, llama.cpp), and multi-language support.
+
 .SH OPTIONS
 .TP
 .B \-h, \-\-help
@@ -20,6 +22,26 @@ Display help information and exit.
 .B \-v, \-\-version
 Display version information and exit.
 
+.SH FILES
+.TP
+.I ~/.config/Notolog/notolog_editor.conf
+User settings file (QSettings).
+.TP
+.I ~/.local/share/applications/notolog_app_config.toml
+Application configuration file.
+
+.SH ENVIRONMENT
+.TP
+.B QT_QPA_PLATFORM
+Qt platform plugin (e.g., xcb, wayland).
+
+.SH BUGS
+Report bugs at \fIhttps://github.com/notolog/notolog-editor/issues\fP
+
 .SH AUTHOR
-Developed by Vadim Bakhrenkov
-Project homepage: \fIhttps://github.com/notolog/notolog-editor\fP
+Developed by Vadim Bakhrenkov <dev@notolog.app>
+
+.SH SEE ALSO
+Project homepage: \fIhttps://notolog.app\fP
+.br
+Repository: \fIhttps://github.com/notolog/notolog-editor\fP

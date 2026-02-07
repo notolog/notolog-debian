@@ -4,21 +4,22 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
+
+"""
+Pre-build script for Notolog Debian package.
+
+This script patches the pyproject.toml to ensure compatibility with PyInstaller:
+- Pins tomli to version 2.0.1 to avoid import errors in PyInstaller bundles.
+- Generates version.txt for the build process.
+"""
 
 import os
 import tomli
 import tomli_w
 
 file_path = os.path.join(os.path.dirname(__file__), "..", "..", "src", "pyproject.toml")
-dependency_key = "tomli"
-# Modify the package
-version_constraint = "^2.0.1"
-replacement = "^2.0.1,<=2.0.1"
-# Add a new package
-new_key = "llama-cpp-python"
-new_value = "^0.3.8"
 
 # Load TOML (read-only)
 with open(file_path, "rb") as f:
@@ -29,12 +30,19 @@ tool = data.setdefault("tool", {})
 poetry = tool.setdefault("poetry", {})
 dependencies = poetry.setdefault("dependencies", {})
 
-# Update version constraint
-if dependency_key in dependencies and dependencies[dependency_key] == version_constraint:
-    dependencies[dependency_key] = replacement
-
-# Add a new dependency
-dependencies[new_key] = new_value
+# Patch tomli to exact version 2.0.1 to avoid mypyc-compiled 2.4.0+
+# which causes "ModuleNotFoundError: No module named '...__mypyc'" in PyInstaller
+TOMLI_PINNED_VERSION = "=2.0.1"
+if "tomli" in dependencies:
+    original_version = dependencies["tomli"]
+    if original_version != TOMLI_PINNED_VERSION:
+        dependencies["tomli"] = TOMLI_PINNED_VERSION
+        print(f"Patched tomli: {original_version} -> {TOMLI_PINNED_VERSION}")
+    else:
+        print(f"tomli already pinned to {TOMLI_PINNED_VERSION}")
+else:
+    dependencies["tomli"] = TOMLI_PINNED_VERSION
+    print(f"Added tomli {TOMLI_PINNED_VERSION}")
 
 # Save TOML back
 with open(file_path, "wb") as f:

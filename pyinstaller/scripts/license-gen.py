@@ -4,7 +4,7 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 import os
@@ -71,12 +71,14 @@ DUAL_LICENSE_MAP = {
     "Apache-2.0 OR BSD-3-Clause": True,
 }
 
+
 def normalize_license(pkg_name: str, raw_license: str) -> str:
     # Prefer specific per-package mapping (SPDX-compliant)
     if pkg_name in PACKAGE_LICENSE_MAP:
         return PACKAGE_LICENSE_MAP[pkg_name]
     # Fallback to generic mapping
     return GENERIC_LICENSE_MAP.get(raw_license.strip(), raw_license.strip())
+
 
 def extract_copyright_block(license_file: Path) -> str:
     """
@@ -122,6 +124,7 @@ def extract_copyright_block(license_file: Path) -> str:
 
     # Format the result: join all collected lines under one "Copyright:" block
     return "\n ".join(collected)
+
 
 def parse_pip_licenses(file_path):
     entries = []
@@ -172,7 +175,9 @@ License-Text:
                 # Case 2: custom license file available
                 elif license_file_path and os.path.isfile(license_file_path):
                     try:
-                        license_text = Path(license_file_path).read_text(encoding="utf-8").strip()
+                        license_text = (
+                            Path(license_file_path).read_text(encoding="utf-8").strip()
+                        )
                         if license_text:
                             indented_text = " " + license_text.replace("\n", "\n ")
                             license_block += f"{indented_text}\n"
@@ -186,25 +191,28 @@ License-Text:
 
                     # Ensure license_file_path is still valid before replacing
                     if license_file_path:
-                        bsd_license_file = Path(license_file_path).with_name("LICENSE.BSD")
+                        bsd_license_file = Path(license_file_path).with_name(
+                            "LICENSE.BSD"
+                        )
                         if bsd_license_file.exists():
                             try:
-                                bsd_text = bsd_license_file.read_text(encoding="utf-8").strip()
+                                bsd_text = bsd_license_file.read_text(
+                                    encoding="utf-8"
+                                ).strip()
                                 if bsd_text:
                                     indented_bsd = " " + bsd_text.replace("\n", "\n ")
                                     license_block += f"\n The full BSD license text follows:\n\n{indented_bsd}\n"
                             except Exception as e:
-                                print(f"Could not read BSD license file for {name}: {e}")
+                                print(
+                                    f"Could not read BSD license file for {name}: {e}"
+                                )
 
                 entries.append(license_block)
 
     return entries
 
+
 def generate_copyright():
-    base_header = """Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Notolog
-Source: https://notolog.app
-"""
 
     current_dir = Path(__file__).resolve().parent
     builder_dir = current_dir.parent
@@ -222,13 +230,19 @@ Source: https://notolog.app
 
     append_generated_copyright(base_path, generated_path)
 
+
 def append_generated_copyright(base_path, generated_path):
     base_content = base_path.read_text(encoding="utf-8").strip()
     generated_content = generated_path.read_text(encoding="utf-8").strip()
-    combined = base_content + "\n\n# === AUTO-GENERATED LICENSES ===\n\n" + generated_content + "\n"
+    combined = (
+        base_content
+        + "\n\n# === AUTO-GENERATED LICENSES ===\n\n"
+        + generated_content
+        + "\n"
+    )
     base_path.write_text(combined, encoding="utf-8")
     print(f"{base_path} updated with generated license entries.")
 
+
 if __name__ == "__main__":
     generate_copyright()
-

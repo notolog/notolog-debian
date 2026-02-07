@@ -1,4 +1,4 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-04-01 00:00:00.000000"}} -->
+<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-02-07 00:00:00.000000"}} -->
 # Build Debian Package
 
 This document provides instructions to build and maintain the Debian package for Notolog Editor.

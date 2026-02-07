@@ -8,14 +8,15 @@ File Details:
 
 Repository: https://github.com/notolog/notolog-debian
 App Repository: https://github.com/notolog/notolog-editor
-Website: https://notolog.app
+Website: https://notolog.com
+Documentation: https://notolog.app
 PyPI: https://pypi.org/project/notolog
 
 Author: Vadim Bakhrenkov
-Copyright: 2025 Vadim Bakhrenkov
+Copyright: 2025-2026 Vadim Bakhrenkov
 License: MIT License
 
-SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 SPDX-License-Identifier: MIT
 
 For detailed instructions and project information, please refer to the repository's README.md.

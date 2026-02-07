@@ -1,7 +1,9 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-04-01 00:00:00.000000"}} -->
+<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-02-08 00:00:00.000000"}} -->
 # Debian Package Builder for Notolog Editor
 
-An isolated build repository for generating `.deb` packages for [Notolog Editor](https://github.com/notolog/notolog-editor) — an open-source Markdown editor built with Python and PySide6, featuring an integrated AI assistant.
+[![GitHub Release](https://img.shields.io/github/v/release/notolog/notolog-debian)](https://github.com/notolog/notolog-debian) [![GitHub License](https://img.shields.io/github/license/notolog/notolog-debian?color=yellow)](https://github.com/notolog/notolog-debian/blob/master/LICENSE) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/notolog/notolog-debian/build.yaml?color=green)](https://github.com/notolog/notolog-debian/actions/workflows/build.yaml)
+
+An isolated build repository for generating `.deb` packages for [Notolog Editor](https://github.com/notolog/notolog-editor) - a Python-powered Markdown editor featuring an integrated AI assistant, on-device LLM support, and optional file encryption.
 
 ```
 ▒█▄░▒█ ▒█▀▀▀▄ ▀▀█▀▀ ▒█▀▀▀▄ ▒█░░░ ▒█▀▀▀▄ ▒█▀▀█░
@@ -11,16 +13,40 @@ An isolated build repository for generating `.deb` packages for [Notolog Editor]
 
 This repo contains build scripts, CI/CD workflows, and Debian packaging files used to create and lint compliant `.deb` packages. It does not include application source code.
 
+- 🌐 **Official site**: https://notolog.com
+- 📚 **Documentation**: https://notolog.app
 - 📦 **Main app repo**: https://github.com/notolog/notolog-editor
 - 🛠️ **This builder repo**: https://github.com/notolog/notolog-debian
 - ⚖️ **License**: MIT License
 
 ## Installation
 
+### For Users: Install from PPA
+
+The easiest way to install Notolog on Ubuntu:
+
+```bash
+# Add the PPA repository
+sudo add-apt-repository ppa:notolog/ppa
+sudo apt update
+
+# Install Notolog
+sudo apt install notolog
+
+# Run
+notolog
+```
+
+**Supported Ubuntu versions:** Noble (24.04), Questing (25.10)
+
+---
+
+### For Developers: Building from Source
+
 > **Note:** This repository does not contain any third-party software.
 > All third-party dependencies are bundled and attributed within the application package during the build process.
 
-### System Build Packages
+#### System Build Packages
 
 Essential packages required to perform the build:
 ```bash
@@ -113,8 +139,10 @@ pyinstaller --onefile --noconfirm --name=notolog \
   --add-data="docs/*:docs" \
   --add-data="CHANGELOG.md:." \
   --add-data="CODE_OF_CONDUCT.md:." \
+  --add-data="CONTRIBUTING.md:." \
   --add-data="LICENSE:." \
   --add-data="README.md:." \
+  --add-data="SECURITY.md:." \
   --add-data="ThirdPartyNotices.md:." \
   --exclude-module __pycache__ \
   --exclude-module "*.pyc" \
@@ -185,7 +213,7 @@ reuse lint
 
 Annotate specific files
 ```bash
-reuse annotate --copyright="2024-2025 Author Name" \
+reuse annotate --copyright="2024-2026 Author Name" \
   --license="MIT" --skip-unrecognised \
   debian/README.md debian/changelog debian/control
 ```
@@ -382,6 +410,10 @@ Support: https://github.com/notolog/notolog-editor/discussions
 The build process is automated using GitHub Actions, and the resulting artifact is uploaded after the workflow completes.
 
 Refer to `.github/workflows/build.yaml` for details and step-by-step instructions.
+
+## Contributing
+
+See [CONTRIBUTING.md](https://github.com/notolog/notolog-debian/blob/main/CONTRIBUTING.md) for guidelines.
 
 ## Licensing
 

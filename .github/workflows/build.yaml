@@ -4,16 +4,26 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 name: Build Debian Package
 
 on:
-  workflow_dispatch:   # Allows the workflow to be triggered manually
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Version override (e.g., v1.2.0). Leave empty for latest release."
+        required: false
+        default: ""
+  push:
+    tags:
+      - "v*"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
+
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
   APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
@@ -21,7 +31,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # But by default will use an x86_64 runner
+    runs-on: ubuntu-latest
+    # Note: For arm64 builds, use self-hosted runners or QEMU emulation
+    # See README.md for instructions
 
     steps:
       - name: Get system info
@@ -31,11 +43,24 @@ jobs:
           echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> $GITHUB_ENV
           uname -a
 
-      - name: Get the latest OnnxRuntime version
+      - name: Determine package version
         run: |
-          LATEST_RELEASE_VERSION_TAG=$(curl -s ${{ env.APP_RELEASES_URL }} | grep tag_name | head -n 1 | cut -d '"' -f 4)
-          echo "$LATEST_RELEASE_VERSION_TAG"
-          echo "PACKAGE_VERSION=$LATEST_RELEASE_VERSION_TAG" >> $GITHUB_ENV
+          if [ -n "${{ github.event.inputs.version_override }}" ]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION=$(curl -s ${{ env.APP_RELEASES_URL }}/latest | grep tag_name | cut -d '"' -f 4)
+          fi
+          echo "Building version: $VERSION"
+
+          # Extract upstream version (strip Debian revision suffix like -1ubuntu1)
+          # Example: v1.2.0-1ubuntu1 -> v1.2.0
+          UPSTREAM_VERSION=$(echo "$VERSION" | sed 's/-[0-9]\+ubuntu[0-9]\+$//')
+          echo "Upstream version: $UPSTREAM_VERSION"
+
+          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
 
       - name: Checkout builder repository
         uses: actions/checkout@v4
@@ -46,13 +71,13 @@ jobs:
           repository: ${{ env.APP_GIT_REPOSITORY }}
           path: src
           fetch-tags: true
-          ref: refs/tags/${{ env.PACKAGE_VERSION }}
-          fetch-depth: 1  # Shallow clone (no .git history)
+          ref: refs/tags/${{ env.UPSTREAM_VERSION }}
+          fetch-depth: 1 # Shallow clone (no .git history)
 
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Python dependencies
         run: |
@@ -62,10 +87,10 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt update
+          sudo apt-get update
           sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian
           # Optional: install all declared build dependencies from debian/control
-          sudo apt-get build-dep .
+          sudo apt-get build-dep . || true
 
       - name: Print working directory
         run: pwd
@@ -97,8 +122,8 @@ jobs:
 
       - name: Check SPDX compliance on source tree
         run: |
-         reuse download --all
-         reuse lint || (echo '❌ SPDX compliance failed.' && exit 1)
+          reuse download --all
+          reuse lint || (echo '❌ SPDX compliance failed.' && exit 1)
 
       - name: Copy .deb, .buildinfo, and .changes files
         run: |

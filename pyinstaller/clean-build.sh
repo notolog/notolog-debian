@@ -6,7 +6,7 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 # Check if the script is run as root or use sudo
@@ -31,12 +31,31 @@ echo "Removing Python cache files..."
 $SUDO find "$PROJECT_ROOT" -name "*.pyc" -delete
 $SUDO find "$PROJECT_ROOT" -name "__pycache__" -delete
 
-# Clean previous build
+# Clean debian helper files that may have root ownership
+echo "Cleaning debian helper artifacts..."
+if [ -d "$PROJECT_ROOT/debian/.debhelper" ]; then
+    $SUDO rm -rf "$PROJECT_ROOT/debian/.debhelper" || {
+        echo "Warning: Could not remove debian/.debhelper"
+    }
+fi
+if [ -f "$PROJECT_ROOT/debian/debhelper-build-stamp" ]; then
+    $SUDO rm -f "$PROJECT_ROOT/debian/debhelper-build-stamp"
+fi
+if [ -f "$PROJECT_ROOT/debian/files" ]; then
+    $SUDO rm -f "$PROJECT_ROOT/debian/files"
+fi
+# Clean debian/notolog directory (created during build)
+if [ -d "$PROJECT_ROOT/debian/notolog" ]; then
+    $SUDO rm -rf "$PROJECT_ROOT/debian/notolog" || {
+        echo "Warning: Could not remove debian/notolog"
+    }
+fi
+
+# Clean previous build (this should now work without permission errors)
 echo "Cleaning dpkg build artifacts..."
-cd "$PROJECT_ROOT"
-$SUDO dpkg-buildpackage -T clean || {
-    echo "Error: Failed to clean build artifacts."
-    exit 1
+cd "$PROJECT_ROOT" || exit 1
+dpkg-buildpackage -T clean 2>/dev/null || {
+    echo "Note: dpkg-buildpackage -T clean had issues (may be OK if already clean)"
 }
 
 # PyInstaller paths
@@ -53,7 +72,7 @@ PACKAGE_CONFIG_FILE="$PYI_DIR/package_config.toml"
 VERSION_FILE="$PYI_DIR/version.txt"
 
 # Move to the PyInstaller dir
-cd "$PYI_DIR"
+cd "$PYI_DIR" || exit 1
 
 # Remove build and dist directories
 for DIR in "$BUILD_DIR" "$DIST_DIR"; do

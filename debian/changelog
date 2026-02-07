@@ -1,3 +1,18 @@
+notolog (1.2.0-1ubuntu1) noble; urgency=medium
+
+  * Initial PPA upload for Ubuntu
+  * Added support for admonition notes with themed styling.
+  * Added GPU to CPU fallback for ONNX models on insufficient VRAM.
+  * Added hardware acceleration support for On Device LLM module.
+  * Improved error handling and memory management for AI modules.
+  * Improved view mode styling with updated margins and spacing.
+  * Removed trailing newlines from code blocks.
+  * Fixed font size updates now properly refresh view mode content.
+  * Fixed AI model loading blocking the UI thread.
+  * Includes all prior project changes up to this version.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Sat, 08 Feb 2026 00:00:00 +0000
+
 notolog (1.1.6) unstable; urgency=medium
 
   * Initial Debian release.

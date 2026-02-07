@@ -5,13 +5,13 @@ Maintainer: Vadim Bakhrenkov <dev@notolog.app>
 Rules-Requires-Root: no
 Build-Depends: debhelper-compat (= 13), python3:any
 Standards-Version: 4.6.2
-Homepage: https://notolog.app
+Homepage: https://notolog.com
 Vcs-Browser: https://github.com/notolog/notolog-editor
 Vcs-Git: https://github.com/notolog/notolog-editor.git
 
 Package: notolog
 Architecture: amd64
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}, libxcb-cursor0
 Enhances: markdown
 Description: Markdown editor with AI assistant
  A modern, open-source Markdown editor licensed under the MIT License.
@@ -20,4 +20,7 @@ Description: Markdown editor with AI assistant
  tools and an integrated AI assistant. Notolog is designed to help developers
  and writers focus, prototype ideas, and sharpen their Markdown fluency.
  .
- For more information, see the Notolog website.
+ Features include markdown syntax highlighting, encryption support,
+ on-device LLM integration (ONNX, llama.cpp), and multi-language support.
+ .
+ For more information, see https://notolog.app

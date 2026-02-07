@@ -4,7 +4,7 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 # Python bytecode
@@ -67,3 +67,20 @@ Thumbs.db
 *.dsc
 *.changes
 *.buildinfo
+
+# Debian build artifacts
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/notolog.substvars
+debian/notolog/
+
+# PyInstaller artifacts
+pyinstaller/build/
+pyinstaller/dist/
+pyinstaller/pyi-source/
+pyinstaller/package_config.toml
+pyinstaller/version.txt
+
+# Source code (cloned during build)
+src/

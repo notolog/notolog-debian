@@ -4,15 +4,18 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 debian/extras/usr/share/applications/notolog.desktop /usr/share/applications/
 debian/extras/usr/share/doc/notolog/README.Debian /usr/share/doc/notolog/
 debian/extras/usr/share/icons/hicolor/256x256/apps/notolog.png /usr/share/icons/hicolor/256x256/apps/
+debian/extras/usr/share/metainfo/app.notolog.notolog.metainfo.xml /usr/share/metainfo/
 debian/extras/usr/share/notolog/icons/notolog.png /usr/share/notolog/icons/
 debian/notolog.1 /usr/share/man/man1/
 src/CHANGELOG.md /usr/share/doc/notolog/
 src/CODE_OF_CONDUCT.md /usr/share/doc/notolog/
+src/CONTRIBUTING.md /usr/share/doc/notolog/
 src/LICENSE /usr/share/doc/notolog/
 src/README.md /usr/share/doc/notolog/
+src/SECURITY.md /usr/share/doc/notolog/
 src/ThirdPartyNotices.md /usr/share/doc/notolog/

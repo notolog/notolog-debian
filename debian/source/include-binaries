@@ -1,0 +1,11 @@
+# List of binary files to include in the source package
+# These are intentionally included and not generated from source on Launchpad
+#
+# The PyInstaller binary is pre-built and bundled in the source package
+# because Launchpad build environments cannot run PyInstaller builds
+# (requires GUI dependencies, build takes too long, etc.)
+#
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+pyinstaller/dist/notolog

@@ -4,6 +4,8 @@ version = 1
 path = [
   "README.md",
   "CODE_OF_CONDUCT.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
   # Debian files (some excluded from linting)
   "debian/changelog",
   "debian/control",
@@ -18,7 +20,7 @@ path = [
   # Application source files
   "src/**",
 ]
-SPDX-FileCopyrightText = "2025 Vadim Bakhrenkov"
+SPDX-FileCopyrightText = "2025-2026 Vadim Bakhrenkov"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]

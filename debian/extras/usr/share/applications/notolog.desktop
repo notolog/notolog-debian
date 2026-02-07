@@ -1,11 +1,14 @@
 [Desktop Entry]
+Version=1.0
 Type=Application
 Name=Notolog
-GenericName=Notolog Editor
-Comment=Python Markdown Editor
-Exec=/usr/bin/notolog
+GenericName=Markdown Editor
+Comment=Markdown editor with AI assistant
+Exec=/usr/bin/notolog %F
 StartupWMClass=app.notolog.notolog
 Icon=notolog
 Terminal=false
-Categories=TextEditor;Utility;
+Categories=TextEditor;Utility;Office;
+Keywords=markdown;editor;notes;ai;text;
+MimeType=text/markdown;text/x-markdown;text/plain;
 StartupNotify=true

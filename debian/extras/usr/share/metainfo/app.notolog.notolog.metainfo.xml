@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov -->
+<!-- SPDX-License-Identifier: MIT -->
+<component type="desktop-application">
+  <id>app.notolog.notolog</id>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Notolog</name>
+  <summary>Markdown editor with AI assistant</summary>
+  <description>
+    <p>
+      Notolog is an open-source Markdown editor built with Python and PySide6.
+      It features an integrated AI assistant, syntax highlighting, encryption support,
+      and on-device LLM integration.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Clean, distraction-free Markdown editing</li>
+      <li>AI assistant with on-device LLM support (ONNX, llama.cpp)</li>
+      <li>File encryption for sensitive notes</li>
+      <li>Syntax highlighting and live preview</li>
+      <li>Multi-language support</li>
+      <li>Cross-platform (Linux, macOS, Windows)</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">notolog.desktop</launchable>
+  <url type="homepage">https://notolog.com</url>
+  <url type="bugtracker">https://github.com/notolog/notolog-editor/issues</url>
+  <url type="help">https://notolog.app</url>
+  <url type="vcs-browser">https://github.com/notolog/notolog-editor</url>
+  <developer_name>Vadim Bakhrenkov</developer_name>
+  <update_contact>dev@notolog.app</update_contact>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="1.2.0" date="2026-02-07">
+      <description>
+        <p>New features and improvements:</p>
+        <ul>
+          <li>Added support for admonition notes with themed styling</li>
+          <li>Added GPU to CPU fallback for ONNX models on insufficient VRAM</li>
+          <li>Added hardware acceleration support for On Device LLM module</li>
+          <li>Improved error handling and memory management for AI modules</li>
+          <li>Improved view mode styling with updated margins and spacing</li>
+          <li>Removed trailing newlines from code blocks</li>
+          <li>Fixed font size updates now properly refresh view mode content</li>
+          <li>Fixed AI model loading blocking the UI thread</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.1.9" date="2026-01-31">
+      <description>
+        <p>GPU acceleration and stability improvements:</p>
+        <ul>
+          <li>Automatic GPU to CPU fallback for ONNX models when VRAM is insufficient</li>
+          <li>Graceful handling of model loading cancellation</li>
+          <li>Improved error handling for GPU memory allocation failures</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.1.8" date="2026-01-24">
+      <description>
+        <p>Hardware acceleration and language support:</p>
+        <ul>
+          <li>Added Indonesian language support</li>
+          <li>Added hardware acceleration (CPU, CUDA, DirectML, OpenVINO, CoreML, TensorRT, QNN, MIGraphX)</li>
+          <li>Added CPU/GPU inference mode icon indicator in AI Assistant status bar</li>
+          <li>Updated OpenAI model list with latest models</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.1.7" date="2026-01-18">
+      <description>
+        <p>Documentation and stability improvements:</p>
+        <ul>
+          <li>Added model loading status messages for AI modules</li>
+          <li>Added comprehensive documentation (getting started, user guide, API reference)</li>
+          <li>Improved AI Assistant signal handling and resource cleanup</li>
+          <li>Now requires Python 3.10 or later</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.1.6" date="2025-03-31">
+      <description>
+        <p>Initial Debian release:</p>
+        <ul>
+          <li>First public .deb package release</li>
+          <li>Improved search form behavior during text editing</li>
+          <li>Fixed status bar navigation arrow colors across all themes</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Notolog Editor main window</caption>
+      <image>https://raw.githubusercontent.com/notolog/notolog-editor/refs/heads/main/docs/assets/images/ui/notolog-ui-example.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>TextEditor</category>
+    <category>Utility</category>
+    <category>Office</category>
+  </categories>
+  <keywords>
+    <keyword>markdown</keyword>
+    <keyword>editor</keyword>
+    <keyword>notes</keyword>
+    <keyword>ai</keyword>
+    <keyword>llm</keyword>
+    <keyword>text</keyword>
+    <keyword>writing</keyword>
+  </keywords>
+  <provides>
+    <binary>notolog</binary>
+  </provides>
+</component>

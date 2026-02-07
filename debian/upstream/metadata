@@ -4,22 +4,21 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 # See https://wiki.debian.org/UpstreamMetadata for more info/fields.
 
 Name: Notolog Editor
 License: MIT
-Homepage: https://notolog.app
+Homepage: https://notolog.com
 Contact: dev@notolog.app
 
 Bug-Database: https://github.com/notolog/notolog-editor/issues
 Bug-Submit: https://github.com/notolog/notolog-editor/issues/new
 
 Changelog: https://github.com/notolog/notolog-editor/blob/main/CHANGELOG.md
-Documentation: https://github.com/notolog/notolog-editor/blob/main/README.md
-# Alternative: https://github.com/notolog/notolog-editor/wiki
+Documentation: https://notolog.app
 
 Repository: https://github.com/notolog/notolog-editor.git
 Repository-Browse: https://github.com/notolog/notolog-editor

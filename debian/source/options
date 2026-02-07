@@ -1,0 +1,75 @@
+# Debian source package options
+# Exclude files/directories from source package
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+# IMPORTANT: dpkg-source tar-ignore uses shell glob patterns
+# Be careful - patterns like "build" match ANY path containing "build"
+# Use explicit paths where possible
+
+# Version control
+tar-ignore = ".git"
+tar-ignore = ".gitignore"
+tar-ignore = ".gitattributes"
+tar-ignore = ".github"
+
+# Node.js (root level only)
+tar-ignore = "node_modules"
+
+# Virtual environments (these are at project root level)
+# Pattern matches directory name anywhere, so be specific if needed
+tar-ignore = "venv"
+tar-ignore = ".venv"
+
+# Python artifacts
+tar-ignore = "__pycache__"
+tar-ignore = "*.pyc"
+tar-ignore = "*.pyo"
+tar-ignore = ".pytest_cache"
+tar-ignore = ".tox"
+tar-ignore = "*.egg-info"
+
+# Build artifacts (file extensions only - safe)
+# IMPORTANT: We do NOT exclude 'dist' or 'build' directories globally
+# because pyinstaller/dist/notolog must be included!
+tar-ignore = "*.deb"
+tar-ignore = "*.dsc"
+tar-ignore = "*.changes"
+tar-ignore = "*.buildinfo"
+tar-ignore = "*.tar.gz"
+tar-ignore = "*.tar.xz"
+
+# Editor/IDE
+tar-ignore = ".vscode"
+tar-ignore = ".idea"
+tar-ignore = "*.swp"
+tar-ignore = "*.swo"
+tar-ignore = "*~"
+
+# Temporary files
+tar-ignore = "*.tmp"
+tar-ignore = "*.log"
+
+# Documentation
+tar-ignore = "docs"
+
+# Pre-commit
+tar-ignore = ".pre-commit-config.yaml"
+
+# Python source code from src/ (not needed - bundled in PyInstaller binary)
+# Keep only essential docs for debian/install
+tar-ignore = "src/notolog"
+tar-ignore = "src/tests"
+tar-ignore = "src/docs"
+tar-ignore = "src/dist"
+tar-ignore = "src/pyproject.toml"
+tar-ignore = "src/dev_install.py"
+tar-ignore = "src/llms.txt"
+tar-ignore = "src/.gitignore"
+tar-ignore = "src/.gitattributes"
+tar-ignore = "src/.coveragerc"
+
+# PyInstaller temp artifacts ONLY
+# Explicit paths to avoid accidentally excluding pyinstaller/dist/
+tar-ignore = "pyinstaller/build"
+tar-ignore = "pyinstaller/pyi-source"

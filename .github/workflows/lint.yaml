@@ -1,0 +1,48 @@
+# Debian Package Builder for Notolog Editor
+# Linting workflow for Notolog Debian Package Builder
+#
+# Repository: https://github.com/notolog/notolog-debian
+# License: MIT License
+#
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install linting tools
+        run: |
+          pip install reuse
+
+      - name: Check SPDX compliance
+        run: |
+          reuse download --all
+          reuse lint
+
+      - name: Validate debian/changelog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev
+          dpkg-parsechangelog
+
+      - name: Shellcheck scripts
+        run: |
+          sudo apt-get install -y shellcheck
+          find . -name "*.sh" -type f | xargs shellcheck --severity=warning || true

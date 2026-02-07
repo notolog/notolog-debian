@@ -1,9 +1,11 @@
 Notolog Editor for Debian
 =========================
 
-This is the Debian package for Notolog Editor - an open-source Markdown editor with integrated AI assistant features. The upstream project is maintained at:
+This is the Debian package for Notolog Editor - an open-source Markdown editor with integrated AI assistant features.
 
-    https://github.com/notolog/notolog-editor
+Official website: https://notolog.com
+Online documentation: https://notolog.app
+Upstream project: https://github.com/notolog/notolog-editor
 
 Package Notes
 -------------
@@ -63,4 +65,3 @@ To report packaging issues, visit:
 For application bugs or feature requests:
 
     https://github.com/notolog/notolog-editor/issues
-

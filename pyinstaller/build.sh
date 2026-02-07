@@ -6,7 +6,7 @@
 # Repository: https://github.com/notolog/notolog-debian
 # License: MIT License
 #
-# SPDX-FileCopyrightText: 2025 Vadim Bakhrenkov
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
 # Check if the script is run as root or use sudo
@@ -51,9 +51,6 @@ VENV_DIR="$PROJECT_ROOT/venv"
 
 # Generated files
 BUILD_DIR="$PYI_DIR/build"
-DIST_DIR="$PYI_DIR/dist"
-PACKAGE_CONFIG_FILE="$PYI_DIR/package_config.toml"
-VERSION_FILE="$PYI_DIR/version.txt"
 
 # Path to supporting utility scripts
 SCRIPTS_DIR="$PYI_DIR/scripts"
@@ -66,7 +63,7 @@ else
 fi
 
 # Move to the PyInstaller dir
-cd "$PYI_DIR"
+cd "$PYI_DIR" || exit 1
 
 # Create pyinstaller virtual environment
 echo "Creating Python environment..."
@@ -76,6 +73,7 @@ python3 -m venv "$VENV_DIR/notolog"
 # Activate the pyinstaller environment
 echo "Activating Python environment..."
 
+# shellcheck disable=SC1091
 source "$VENV_DIR/notolog/bin/activate" || {
     echo "Error: Failed to activate Python environment."
     exit 1
@@ -106,7 +104,7 @@ else
 fi
 
 # Install the app with all dependencies
-if pip install "$SOURCE_DIR"; then
+if pip install "${SOURCE_DIR}[llama]"; then
     echo "Installed the app."
 else
     echo "Error occurred when installing the app package."
@@ -138,7 +136,7 @@ else
 fi
 
 # Save Python version
-if python3 --version > $BUILD_DIR/python_version.txt; then
+if python3 --version > "$BUILD_DIR/python_version.txt"; then
     echo "Saved Python version."
 else
     echo "Error occurred while saving Python version."
@@ -146,8 +144,9 @@ else
 fi
 
 # Extract and save app version
-if APP_VERSION=$(grep '^version *= *"' $SOURCE_DIR/pyproject.toml | cut -d '"' -f2); then
-    echo "$APP_VERSION" > $BUILD_DIR/app_version.txt
+# Note: version is inside a TOML string with leading whitespace, so we can't use ^ anchor
+if APP_VERSION=$(grep 'version *= *"' "$SOURCE_DIR/notolog/app_config.py" | head -1 | cut -d '"' -f2); then
+    echo "$APP_VERSION" > "$BUILD_DIR/app_version.txt"
     echo "Saved app version: $APP_VERSION"
 else
     echo "Error occurred while extracting app version."
@@ -257,15 +256,20 @@ else
     exit 1
 fi
 
-# Build deb package
-echo "Building deb package..."
-# Move to the project root
-cd "$PROJECT_ROOT"
-if sudo dpkg-buildpackage -rfakeroot -us -uc -b; then
-    echo "Deb package was built successfully."
+# Build deb package (can be skipped for source-only builds like Launchpad)
+if [ "${SKIP_DEB_BUILD:-}" = "true" ]; then
+    echo "Skipping .deb build (SKIP_DEB_BUILD=true)"
+    echo "PyInstaller binary is ready at: $PYI_DIR/dist/notolog"
 else
-    echo "Error occurred when building deb package."
-    exit 1
+    echo "Building deb package..."
+    # Move to the project root
+    cd "$PROJECT_ROOT" || exit 1
+    if sudo dpkg-buildpackage -rfakeroot -us -uc -b; then
+        echo "Deb package was built successfully."
+    else
+        echo "Error occurred when building deb package."
+        exit 1
+    fi
 fi
 
 exit 0

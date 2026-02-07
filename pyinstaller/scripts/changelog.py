@@ -64,9 +64,10 @@ for line in changes.splitlines():
 date_obj = datetime.strptime(date, "%Y-%m-%d")
 debian_timestamp = date_obj.strftime("%a, %d %b %Y %H:%M:%S +0000")
 
+formatted_lines = "\n".join(line.rstrip() for line in lines)
 entry = (
     f"{package_name} ({version}) {status}; urgency={urgency}\n"
-    f"{"\n".join(line.rstrip() for line in lines)}\n\n"
+    f"{formatted_lines}\n\n"
     f" -- {maintainer}  {debian_timestamp}"
 )
 
