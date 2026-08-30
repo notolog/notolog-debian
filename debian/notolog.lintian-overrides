@@ -8,13 +8,3 @@
 # The copyright file includes full license texts for bundled third-party
 # components as required for proper attribution (PyInstaller bundle)
 copyright-file-contains-full-gpl-license
-
-# postinst script sets permissions on runtime directory for app group access
-notolog: recursive-privilege-change
-
-# PyInstaller binary is a self-extracting executable, not a standard ELF
-notolog: unstripped-binary-or-object
-notolog: statically-linked-binary
-
-# Embedded libraries are part of the PyInstaller bundle
-notolog: embedded-library

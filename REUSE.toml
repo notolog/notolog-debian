@@ -9,6 +9,7 @@ path = [
   # Debian files (some excluded from linting)
   "debian/changelog",
   "debian/control",
+  "debian/copyright",
   "debian/extras/**",
   "debian/notolog.1",
   "debian/notolog.lintian-overrides",

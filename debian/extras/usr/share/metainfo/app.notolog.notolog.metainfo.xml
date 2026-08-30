@@ -28,10 +28,22 @@
   <url type="bugtracker">https://github.com/notolog/notolog-editor/issues</url>
   <url type="help">https://notolog.app</url>
   <url type="vcs-browser">https://github.com/notolog/notolog-editor</url>
-  <developer_name>Vadim Bakhrenkov</developer_name>
+  <developer id="app.notolog">
+    <name>Vadim Bakhrenkov</name>
+  </developer>
   <update_contact>dev@notolog.app</update_contact>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.2.2" date="2026-08-30">
+      <description>
+        <p>Packaging portability and first-launch settings isolation improvements.</p>
+      </description>
+    </release>
+    <release version="1.2.1" date="2026-08-23">
+      <description>
+        <p>Security, stability, packaging, and user-interface improvements.</p>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-02-07">
       <description>
         <p>New features and improvements:</p>
@@ -99,7 +111,6 @@
   <categories>
     <category>TextEditor</category>
     <category>Utility</category>
-    <category>Office</category>
   </categories>
   <keywords>
     <keyword>markdown</keyword>

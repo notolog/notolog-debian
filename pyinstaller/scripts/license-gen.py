@@ -15,9 +15,10 @@ from pathlib import Path
 PACKAGE_LICENSE_MAP = {
     "PySide6_Essentials": "LGPL-3.0-or-later",
     "shiboken6": "LGPL-3.0-or-later",
-    "cryptography": "Apache-2.0 AND BSD-3-Clause",
+    "cryptography": "Apache-2.0 OR BSD-3-Clause",
     "protobuf": "BSD-3-Clause",
-    "packaging": "Apache-2.0 OR BSD-3-Clause",
+    "packaging": "Apache-2.0 OR BSD-2-Clause",
+    "psutil": "BSD-3-Clause",
     "click": "BSD-3-Clause",
     "MarkupSafe": "BSD-3-Clause",
     "Pygments": "BSD-2-Clause",
@@ -67,8 +68,8 @@ SYSTEM_LICENSE_PATH_MAP = {
 
 # Supported dual-license combinations (used to include both license texts if applicable)
 DUAL_LICENSE_MAP = {
-    "Apache-2.0 AND BSD-3-Clause": True,
     "Apache-2.0 OR BSD-3-Clause": True,
+    "Apache-2.0 OR BSD-2-Clause": True,
 }
 
 

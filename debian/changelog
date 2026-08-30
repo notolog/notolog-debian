@@ -1,3 +1,37 @@
+notolog (1.2.2-1ubuntu1) resolute; urgency=medium
+
+  * Update Notolog Editor to version 1.2.2.
+  * Keep packaged settings isolated on the first launch of a fresh profile.
+  * Build runtime-dispatched llama.cpp CPU backends on amd64 while retaining a
+    portable arm64 build.
+  * Validate the binary marker, application version, and target architecture.
+  * Re-audit and smoke-test the executable after Debian package processing.
+  * Verify licence coverage for distributions embedded in the executable.
+  * Include psutil attribution and correct dual-licence expressions.
+  * Restrict package metadata to the supported amd64 and arm64 architectures.
+  * Update the Python build frontend to version 1.6.0.
+  * Enforce the minimum supported Ubuntu glibc baseline in release builds.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Sun, 30 Aug 2026 00:00:00 +0000
+
+notolog (1.2.1-1ubuntu1) resolute; urgency=medium
+
+  * Update Notolog Editor to version 1.2.1.
+  * Include llama.cpp support in the standalone package.
+  * Harden asynchronous shutdown and encrypted-file handling.
+  * Improve status bar file information and responsive icons.
+  * Update the PyInstaller and Python build toolchain.
+  * Refresh pinned GitHub Actions and build-validation hooks.
+  * Correct build documentation and clarify architecture compatibility.
+  * Restore standard Debian package priority metadata.
+  * Add native amd64 and arm64 GitHub build targets.
+  * Configure an Ubuntu 26.04 LTS (Resolute) packaging target.
+  * Remove stale bytecode, local paths, and unused data from the executable.
+  * Validate bundled ELF architecture and Ubuntu glibc compatibility.
+  * Declare the system libraries required by the Qt X11 and Wayland backends.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Sun, 23 Aug 2026 00:00:00 +0000
+
 notolog (1.2.0-1ubuntu1) noble; urgency=medium
 
   * Initial PPA upload for Ubuntu

@@ -10,8 +10,6 @@
 # See https://wiki.debian.org/UpstreamMetadata for more info/fields.
 
 Name: Notolog Editor
-License: MIT
-Homepage: https://notolog.com
 Contact: dev@notolog.app
 
 Bug-Database: https://github.com/notolog/notolog-editor/issues
@@ -22,4 +20,3 @@ Documentation: https://notolog.app
 
 Repository: https://github.com/notolog/notolog-editor.git
 Repository-Browse: https://github.com/notolog/notolog-editor
-Version-Control: git

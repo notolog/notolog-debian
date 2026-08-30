@@ -78,6 +78,7 @@ debian/notolog/
 # PyInstaller artifacts
 pyinstaller/build/
 pyinstaller/dist/
+pyinstaller/embedded-glibc-version.txt
 pyinstaller/pyi-source/
 pyinstaller/package_config.toml
 pyinstaller/version.txt

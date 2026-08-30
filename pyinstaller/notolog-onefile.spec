@@ -14,77 +14,79 @@
 # 1. Using the .spec file:
 #    pyinstaller --clean --noconfirm notolog-onefile.spec
 #
-# 2. Equivalent CLI example:
-#    pyinstaller --onefile --noconfirm --name=notolog --collect-all=notolog notolog/app.py \
-#        --add-data="notolog:notolog" \
-#        --add-data="docs/*:docs" \
-#        --add-data="CHANGELOG.md:." \
-#        --add-data="CODE_OF_CONDUCT.md:." \
-#        --add-data="CONTRIBUTING.md:." \
-#        --add-data="LICENSE:." \
-#        --add-data="README.md:." \
-#        --add-data="SECURITY.md:." \
-#        --add-data="ThirdPartyNotices.md:." \
-#        --exclude-module="__pycache__" --exclude-module="*.pyc" \
-#        --add-data="../envs/notolog-new/lib/python3.11/site-packages/emoji:emoji"
-#
-# 3. Clean-up tip:
-#    find . -name "*.pyc" -delete && find . -name "__pycache__" -delete
-#
-# Use 'app_root' if running this script from within the PyInstaller directory.
+# Invoke through build.sh so dependencies, native hardening, auditing, and packaging
+# use the same release process in local and CI builds.
 
 import os
 import sys
-import sysconfig
-from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+from pathlib import Path
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
 
 # Paths
-site_packages_path = sysconfig.get_path('purelib')
 pyinstaller_path = os.path.dirname(sys.argv[0])
 app_root = os.path.abspath(os.path.join(pyinstaller_path, '..', 'src'))
 version_file_path = os.path.abspath(os.path.join(pyinstaller_path, 'version.txt'))
 icon_file = os.path.join(app_root, 'notolog/assets/notolog-logo.png')
-runtime_tmpdir = '/usr/lib/notolog/runtime'
 
-# Data and binary collection
-datas = [
-    (os.path.join(app_root, 'docs', '*'), 'docs'),
-    (os.path.join(app_root, 'notolog'), 'notolog'),
-    (os.path.join(app_root, 'CHANGELOG.md'), '.'),
-    (os.path.join(app_root, 'CODE_OF_CONDUCT.md'), '.'),
-    (os.path.join(app_root, 'CONTRIBUTING.md'), '.'),
-    (os.path.join(app_root, 'LICENSE'), '.'),
-    (os.path.join(app_root, 'README.md'), '.'),
-    (os.path.join(app_root, 'SECURITY.md'), '.'),
-    (os.path.join(app_root, 'ThirdPartyNotices.md'), '.'),
-]
+# Data and binary collection. Python modules belong in PyInstaller's PYZ
+# archive; only runtime assets should be copied as plain files.
+datas = collect_data_files('notolog')
+# Lexemes are loaded from their source files at runtime rather than imported.
+datas += collect_data_files(
+    'notolog',
+    include_py_files=True,
+    includes=['lexemes/*/*.py'],
+)
+# AI modules are imported from the PYZ archive, but runtime discovery and
+# translated settings load these source paths from disk.
+datas += collect_data_files(
+    'notolog',
+    include_py_files=True,
+    includes=[
+        'modules/*/module_core.py',
+        'modules/*/lexemes/*/*.py',
+    ],
+)
+datas.append((os.path.join(app_root, 'README.md'), '.'))
 binaries = []
-hiddenimports = []
-
-# Include debian/copyright and LICENSES too for clarity
-datas.append((os.path.join(app_root, '..', 'debian', 'copyright'), 'debian'))
-datas.append((os.path.join(app_root, '..', 'debian', 'LICENSES', '*'), 'debian/LICENSES'))
+hiddenimports = collect_submodules('notolog')
 
 # Include version.txt in the PyInstaller bundle (placed at app root)
 datas.append((version_file_path, '.'))
 
-# Collect everything from notolog
-tmp_ret = collect_all('notolog')
-datas += tmp_ret[0]
-binaries += tmp_ret[1]
-hiddenimports += tmp_ret[2]
-
 # Collect extra data and submodules
 datas += collect_data_files('emoji')
-datas += collect_data_files('onnxruntime')
+datas += collect_data_files('onnxruntime', excludes=['datasets/**', 'tools/**'])
 datas += collect_data_files('onnxruntime_genai')
 datas += collect_data_files('jinja2')
 datas += collect_data_files('diskcache')
-# Use site-packages path to locate non-standard llama_cpp package
-datas.append((os.path.join(site_packages_path, 'llama_cpp'), 'llama_cpp/'))
+# Collect llama.cpp Python bindings and native CPU backends for this architecture.
+datas += collect_data_files(
+    'llama_cpp',
+    excludes=['server/**'],
+)
+llama_binaries = collect_dynamic_libs('llama_cpp')
+if os.environ.get('NOTOLOG_LLAMA_CPU_PROFILE') == 'runtime':
+    backend_names = {Path(source).name for source, _ in llama_binaries}
+    if not any(name.startswith('libggml-cpu-') for name in backend_names):
+        raise RuntimeError('llama.cpp runtime CPU backends were not collected')
+binaries += llama_binaries
+hiddenimports += collect_submodules(
+    'llama_cpp',
+    filter=lambda name: not name.startswith('llama_cpp.server'),
+)
 
-hiddenimports += collect_submodules('numpy')
-hiddenimports += collect_submodules('onnxruntime_genai')
+# Tomli's optional mypyc runtime is a generated top-level extension. Pure
+# Python and architectures without that wheel simply have no matching file.
+tomli_spec = __import__('tomli').__spec__
+if tomli_spec and tomli_spec.origin:
+    site_packages = Path(tomli_spec.origin).parent.parent
+    binaries += [(str(path), '.') for path in site_packages.glob('*__mypyc*.so')]
+
+hiddenimports += collect_submodules(
+    'onnxruntime_genai',
+    filter=lambda name: '.models.builders' not in name,
+)
 hiddenimports += collect_submodules('jinja2')
 hiddenimports += collect_submodules('diskcache')
 hiddenimports += collect_submodules('uuid')
@@ -95,19 +97,11 @@ with open(package_config_file_path, "w") as f:
     f.write('# This file is auto-generated.\n[package]\ntype = "bin"')
 datas.append((package_config_file_path, '.'))
 
-# Exclude common temporary or compiled Python files
-# These patterns exclude bytecode and cache from the final binary
+# Exclude test modules if a dependency imports them conditionally.
 excludes = [
-    '__pycache__',
-    '*.pyc',
-    '*.pyo',
-    '.pytest_cache',
-    '.mypy_cache',
-    '.tox',
     'tests',
     'test',
-    '*_test',
-    '*_tests',
+    'pytest',
 ]
 
 # Build Phases
@@ -131,24 +125,6 @@ a = Analysis(
 # Create the PYZ (Python Bytecode) archive
 pyz = PYZ(a.pure)
 
-# Exclude known system libraries from being bundled (present in Debian/Ubuntu)
-system_lib_prefixes = (
-    'libX', 'libcairo', 'libgdk', 'libgtk', 'libatk', 'libz', 'libstdc++', 'libgcc', 'libglib', 'libssl',
-    'libsqlite', 'liblzma', 'libbz2', 'libpng', 'libfreetype', 'libxcb', 'libpango', 'libXrender',
-    'libexpat', 'libffi', 'libsystemd', 'libcom_err', 'libcrypto', 'libmount', 'libcap', 'libgomp',
-    'libreadline', 'libatspi', 'libblkid', 'libbrotlicommon', 'libbrotlidec', 'libbsd', 'libdatrie',
-    'libdbus', 'libepoxy', 'libfontconfig', 'libfribidi', 'libgcrypt', 'libgio', 'libgmodule', 'libgobject',
-    'libgpg', 'libgraphite2', 'libgssapi', 'libgthread', 'libharfbuzz', 'libjpeg', 'libk5crypto',
-    'libkeyutils', 'libkrb5', 'liblz4', 'libmd', 'libpcre2', 'libpixman', 'libpng16', 'libselinux', 'libsqlite3',
-    'libsystemd', 'libthai', 'libtinfo', 'libxkbcommon', 'libuuid',
-)
-
-# Exclude system-provided libraries from the PyInstaller build
-a.binaries = TOC([
-    b for b in a.binaries
-    if not any(os.path.basename(b[0]).startswith(pfx) for pfx in system_lib_prefixes)
-])
-
 exe = EXE(
     pyz,
     a.scripts,
@@ -158,17 +134,18 @@ exe = EXE(
     name='notolog',
     debug=False,
     bootloader_ignore_signals=False,
-    # Strip symbols from executable (useful for release builds)
-    strip=True,
-    upx=True,  # Compress the binary using UPX if available
+    # Some wheel-provided shared libraries are not safe to strip. Debian still
+    # strips the outer executable during packaging.
+    strip=False,
+    upx=False,
     upx_exclude=[],  # List of binaries to exclude from UPX compression
     console=True,  # Set to False for GUI app (hides console window on Windows)
     disable_windowed_traceback=False,
     argv_emulation=False,  # macOS only — emulate argv[0] behavior
-    target_arch='x86_64',  # Optional unless cross-compiling
+    target_arch=None,
     codesign_identity=None,  # macOS code signing (None disables it)
     entitlements_file=None,  # macOS sandbox entitlements (optional)
-    runtime_tmpdir=runtime_tmpdir,  # Runtime unpack directory
+    runtime_tmpdir=None,
     # Used only on Windows (.ico), ignored on Linux/macOS
     icon=icon_file if sys.platform == 'win32' else None,
     version=version_file_path,  # optional

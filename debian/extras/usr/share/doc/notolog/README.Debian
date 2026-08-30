@@ -11,15 +11,14 @@ Package Notes
 -------------
 
 - The binary is installed at: /usr/bin/notolog
-- Application runtime files are extracted at first launch to: /usr/lib/notolog/runtime
+- The PyInstaller one-file runtime is extracted to a temporary directory while the application runs.
 - Documentation and licenses are located in: /usr/share/doc/notolog/
 
 Runtime Behavior
 ----------------
 
 - The application will create a per-user config directory at first launch, typically ~/.config/Notolog.
-- Group-based permissions may apply to runtime directory files (see group `notolog`).
-- Log out or run `newgrp notolog` after install to apply group membership changes.
+- Temporary runtime files are managed by PyInstaller and removed after a normal exit.
 
 Licensing Summary
 -----------------
@@ -41,12 +40,11 @@ For details, refer to:
 Developer & Build Info
 ----------------------
 
-To build the package from source:
+Source and build instructions are maintained in the packaging repository:
 
-    sudo apt install build-essential devscripts fakeroot debhelper
-    dpkg-buildpackage -us -uc -b
+    https://github.com/notolog/notolog-debian
 
-The PyInstaller onefile binary is built prior to packaging and included under /usr/lib/notolog/runtime/.
+The package installs a native PyInstaller one-file binary as /usr/bin/notolog.
 
 Additional Notes
 ----------------

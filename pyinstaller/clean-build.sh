@@ -1,131 +1,32 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -Eeuo pipefail
 
 # Debian Package Builder for Notolog Editor
-# Build scripts and packaging for the Notolog Editor Debian release.
-#
-# Repository: https://github.com/notolog/notolog-debian
-# License: MIT License
-#
 # SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
-# Check if the script is run as root or use sudo
-SUDO=""
-if [ "$(whoami)" != "root" ]; then
-    SUDO=sudo
-fi
-
-# Clean apt cache
-echo "Cleaning APT cache..."
-$SUDO apt-get clean || {
-    echo "Error: Failed to clean APT cache."
-    exit 1
-}
-
-# Resolve project root
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-echo "Project root: $PROJECT_ROOT"
 
-# Clean cached Python files
-echo "Removing Python cache files..."
-$SUDO find "$PROJECT_ROOT" -name "*.pyc" -delete
-$SUDO find "$PROJECT_ROOT" -name "__pycache__" -delete
-
-# Clean debian helper files that may have root ownership
-echo "Cleaning debian helper artifacts..."
-if [ -d "$PROJECT_ROOT/debian/.debhelper" ]; then
-    $SUDO rm -rf "$PROJECT_ROOT/debian/.debhelper" || {
-        echo "Warning: Could not remove debian/.debhelper"
-    }
-fi
-if [ -f "$PROJECT_ROOT/debian/debhelper-build-stamp" ]; then
-    $SUDO rm -f "$PROJECT_ROOT/debian/debhelper-build-stamp"
-fi
-if [ -f "$PROJECT_ROOT/debian/files" ]; then
-    $SUDO rm -f "$PROJECT_ROOT/debian/files"
-fi
-# Clean debian/notolog directory (created during build)
-if [ -d "$PROJECT_ROOT/debian/notolog" ]; then
-    $SUDO rm -rf "$PROJECT_ROOT/debian/notolog" || {
-        echo "Warning: Could not remove debian/notolog"
-    }
+if [ ! -f "$PROJECT_ROOT/debian/control" ] || [ ! -d "$PROJECT_ROOT/pyinstaller" ]; then
+    echo "Error: refusing to clean an unexpected project root: $PROJECT_ROOT" >&2
+    exit 1
 fi
 
-# Clean previous build (this should now work without permission errors)
-echo "Cleaning dpkg build artifacts..."
-cd "$PROJECT_ROOT" || exit 1
-dpkg-buildpackage -T clean 2>/dev/null || {
-    echo "Note: dpkg-buildpackage -T clean had issues (may be OK if already clean)"
-}
+rm -rf -- \
+    "$PROJECT_ROOT/debian/.debhelper" \
+    "$PROJECT_ROOT/debian/notolog" \
+    "$PROJECT_ROOT/pyinstaller/build" \
+    "$PROJECT_ROOT/pyinstaller/dist" \
+    "$PROJECT_ROOT/pyinstaller/pyi-source" \
+    "$PROJECT_ROOT/venv"
 
-# PyInstaller paths
-PYI_DIR="$PROJECT_ROOT/pyinstaller"
-PYI_SOURCE_DIR="$PYI_DIR/pyi-source"
+rm -f -- \
+    "$PROJECT_ROOT/debian/debhelper-build-stamp" \
+    "$PROJECT_ROOT/debian/files" \
+    "$PROJECT_ROOT/debian/notolog.debhelper.log" \
+    "$PROJECT_ROOT/debian/notolog.substvars" \
+    "$PROJECT_ROOT/pyinstaller/embedded-glibc-version.txt" \
+    "$PROJECT_ROOT/pyinstaller/package_config.toml" \
+    "$PROJECT_ROOT/pyinstaller/version.txt"
 
-# Virtual environment
-VENV_DIR="$PROJECT_ROOT/venv"
-
-# Generated files
-BUILD_DIR="$PYI_DIR/build"
-DIST_DIR="$PYI_DIR/dist"
-PACKAGE_CONFIG_FILE="$PYI_DIR/package_config.toml"
-VERSION_FILE="$PYI_DIR/version.txt"
-
-# Move to the PyInstaller dir
-cd "$PYI_DIR" || exit 1
-
-# Remove build and dist directories
-for DIR in "$BUILD_DIR" "$DIST_DIR"; do
-    if [ -d "$DIR" ]; then
-        echo "Removing $DIR..."
-        $SUDO rm -rf "$DIR" || {
-            echo "Failed to remove $DIR"
-            exit 1
-        }
-        echo "$DIR removed."
-    fi
-done
-
-# Delete virtual environment
-if [ -d "$VENV_DIR" ]; then
-    echo "Deleting virtual environment: $VENV_DIR"
-    rm -rf "$VENV_DIR"
-else
-    echo "Virtual environment not found at $VENV_DIR"
-fi
-
-# Delete PyInstaller source
-if [ -d "$PYI_SOURCE_DIR" ]; then
-    echo "Deleting PyInstaller source: $PYI_SOURCE_DIR"
-    rm -rf "$PYI_SOURCE_DIR"
-else
-    echo "PyInstaller source not found at $PYI_SOURCE_DIR"
-fi
-
-# Delete generated package config file
-if [ -f "$PACKAGE_CONFIG_FILE" ]; then
-    echo "Deleting: $PACKAGE_CONFIG_FILE"
-    rm "$PACKAGE_CONFIG_FILE"
-else
-    echo "Package config file not found."
-fi
-
-# Delete generated version file
-if [ -f "$VERSION_FILE" ]; then
-    echo "Deleting: $VERSION_FILE"
-    rm "$VERSION_FILE"
-else
-    echo "Version file not found."
-fi
-
-# Revert auto-generated license information
-#if git checkout $PROJECT_ROOT/debian/copyright; then
-#    echo "Reverted auto-generated lines in $PROJECT_ROOT/debian/copyright file."
-#else
-#    echo "Error occurred while reverting changes in $PROJECT_ROOT/debian/copyright file."
-#    exit 1
-#fi
-
-echo "Clean-up complete."
-
-exit 0
+echo "Build artifacts removed."

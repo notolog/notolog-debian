@@ -9,11 +9,14 @@
 
 name: Build Debian Package
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Version override (e.g., v1.2.0). Leave empty for latest release."
+        description: "Version override (e.g., v1.2.2). Leave empty for latest release."
         required: false
         default: ""
   push:
@@ -21,7 +24,7 @@ on:
       - "v*"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: build-${{ github.repository }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -31,66 +34,98 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    # Note: For arm64 builds, use self-hosted runners or QEMU emulation
-    # See README.md for instructions
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            architecture: amd64
+            target_series: jammy
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+            target_series: noble
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Get system info
         run: |
           PLATFORM_ARCH=$(uname -m)
           echo "$PLATFORM_ARCH"
-          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> $GITHUB_ENV
+          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> "$GITHUB_ENV"
           uname -a
 
-      - name: Determine package version
+      - name: Install release metadata tools
         run: |
-          if [ -n "${{ github.event.inputs.version_override }}" ]; then
-            VERSION="${{ github.event.inputs.version_override }}"
-          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Determine package version
+        env:
+          VERSION_OVERRIDE: ${{ github.event.inputs.version_override }}
+        run: |
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            VERSION="$VERSION_OVERRIDE"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="$GITHUB_REF_NAME"
           else
-            VERSION=$(curl -s ${{ env.APP_RELEASES_URL }}/latest | grep tag_name | cut -d '"' -f 4)
+            VERSION=$(curl --fail --silent --show-error "${{ env.APP_RELEASES_URL }}/latest" \
+              | jq -r '.tag_name // empty')
+          fi
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+ubuntu[0-9]+)?$ ]]; then
+            echo "Invalid release version: $VERSION" >&2
+            exit 1
           fi
           echo "Building version: $VERSION"
 
           # Extract upstream version (strip Debian revision suffix like -1ubuntu1)
           # Example: v1.2.0-1ubuntu1 -> v1.2.0
-          UPSTREAM_VERSION=$(echo "$VERSION" | sed 's/-[0-9]\+ubuntu[0-9]\+$//')
+          UPSTREAM_VERSION="${VERSION%%-*}"
           echo "Upstream version: $UPSTREAM_VERSION"
 
-          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
-          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
+          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> "$GITHUB_ENV"
 
       - name: Checkout builder repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Checkout project source into ./src (shallow clone)
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ env.APP_GIT_REPOSITORY }}
           path: src
           fetch-tags: true
           ref: refs/tags/${{ env.UPSTREAM_VERSION }}
           fetch-depth: 1 # Shallow clone (no .git history)
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install Python dependencies
         run: |
           python3 --version
-          python3 -m pip install --upgrade pip
-          pip install poetry-core build pyinstaller reuse
+          python3 -m pip install --upgrade "pip==26.2.1"
+          python3 -m pip install "reuse==6.2.0"
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian
-          # Optional: install all declared build dependencies from debian/control
-          sudo apt-get build-dep . || true
+          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian libegl1
+
+      - name: Validate builder release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          BUILDER_TAG: ${{ github.ref_name }}
+        run: |
+          DEBIAN_VERSION=$(dpkg-parsechangelog --show-field Version)
+          if [ "$BUILDER_TAG" != "v$DEBIAN_VERSION" ]; then
+            echo "Builder tag $BUILDER_TAG does not match Debian version $DEBIAN_VERSION" >&2
+            exit 1
+          fi
 
       - name: Print working directory
         run: pwd
@@ -101,6 +136,8 @@ jobs:
           echo "Repository: ${{ env.APP_GIT_REPOSITORY }}"
 
       - name: Build Debian package
+        env:
+          TARGET_SERIES_OVERRIDE: ${{ matrix.target_series }}
         run: |
           cd ./pyinstaller
 
@@ -109,13 +146,6 @@ jobs:
 
           # Run the main build script
           ./build.sh
-
-          # Verify PIE hardening
-          echo "🔍 Verifying PIE hardening..."
-          hardening-check ./dist/notolog || {
-            echo "❌ PIE hardening check failed."
-            exit 1
-          }
 
           # Clean up PyInstaller build artifacts
           ./clean-build.sh
@@ -135,39 +165,39 @@ jobs:
           rm -rf "$DEST"
           mkdir -p "$DEST"
 
-          # Require .deb file
-          # Alternatively: DEB_FILE=$(ls ../ | grep -E "^notolog_.*_amd64\.deb$")
-          DEB_FILE=$(find . -maxdepth 1 -type f -name "notolog*.deb" | head -n 1)
-          if [ -z "$DEB_FILE" ]; then
-            echo "❌ No .deb file found. Cannot continue."
+          shopt -s nullglob
+          PACKAGES=(notolog_*.deb)
+          if (( ${#PACKAGES[@]} != 1 )); then
+            echo "❌ Expected exactly one .deb, found ${#PACKAGES[@]}."
             exit 1
           fi
-          cp "$DEB_FILE" "$DEST/"
-          echo "✅ Copied .deb: $DEB_FILE"
+          PACKAGE_ARCHITECTURE=$(dpkg-deb --field "${PACKAGES[0]}" Architecture)
+          if [ "$PACKAGE_ARCHITECTURE" != "${{ matrix.architecture }}" ]; then
+            echo "❌ Expected ${{ matrix.architecture }}, built $PACKAGE_ARCHITECTURE."
+            exit 1
+          fi
+          cp "${PACKAGES[0]}" "$DEST/"
 
-          # Optional files
-          for EXT in buildinfo changes; do
-            FILE=$(find . -maxdepth 1 -type f -name "notolog*.${EXT}" | head -n 1)
-            if [ -n "$FILE" ]; then
-              cp "$FILE" "$DEST/"
-              echo "✅ Copied .${EXT}: $FILE"
-            else
-              echo "⚠️ No .${EXT} file found."
+          for EXTENSION in buildinfo changes; do
+            FILES=(notolog_*."$EXTENSION")
+            if (( ${#FILES[@]} != 1 )); then
+              echo "❌ Expected exactly one .$EXTENSION file, found ${#FILES[@]}."
+              exit 1
             fi
+            cp "${FILES[0]}" "$DEST/"
           done
 
-          # GitHub Actions steps do not persist the working directory between steps
+          lintian --fail-on error "$DEST/${PACKAGES[0]}"
+          dpkg-deb --info "$DEST/${PACKAGES[0]}"
           echo "📦 Final artifact contents:"
           ls -lh "$DEST"
 
-      - name: Upload Debian package artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: notolog-${{ env.PACKAGE_VERSION }}
-          path: build/debian/*
-
-      - name: Lint Debian package
-        run: lintian build/debian/*.deb || true
-
       - name: Validate changelog
         run: dpkg-parsechangelog
+
+      - name: Upload Debian package artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: notolog-${{ env.PACKAGE_VERSION }}-${{ matrix.architecture }}
+          path: build/debian/*
+          if-no-files-found: error

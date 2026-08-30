@@ -5,49 +5,30 @@ This document provides instructions to build and maintain the Debian package for
 
 ## Requirements
 
-Install the required build dependencies:
+Install the required system build dependencies:
 ```bash
-sudo apt-get install build-essential devscripts fakeroot debhelper
+sudo apt-get install build-essential devscripts debhelper lintian zlib1g-dev
 ```
+
+Python 3.14 is required to create the standalone executable. Python build
+dependencies are installed into the builder-owned `venv/` directory.
 
 ## Building the Package
 
-Run the following command to build the Debian package:
+Clone or copy the matching Notolog source into `src/`, then run:
 ```bash
-dpkg-buildpackage -us -uc
+./pyinstaller/build.sh
 ```
 
-For production or CI builds, use:
-
-```bash
-dpkg-buildpackage -rfakeroot -us -uc -b
-```
-
-* -rfakeroot: simulates root ownership during packaging, ensuring correct file metadata in .deb without needing real root.
-* -b: builds only the binary package (skips source tarball, .dsc, etc.).
-
-To specify a custom output directory for the built `.deb` files (instead of the default ../), modify `debian/rules` to include:
-```makefile
-# Specify a custom output directory for the built `.deb` files
-override_dh_builddeb:
-    mkdir -p debian/build
-    dh_builddeb --destdir=debian/build
-```
-
-For production builds, use the `-b` option to build only the binary package. This skips source-related files (e.g., .dsc, .tar.gz), which are not required for binary distributions:
-```bash
-dpkg-buildpackage -us -uc -b
-```
+The script builds and audits the PyInstaller executable before invoking
+`dpkg-buildpackage -us -uc -b`. Set `PYTHON_BIN` when Python 3.14 is not the
+default `python3` executable.
 
 ## Cleaning Build Artifacts and Cache
 
-To clean up build files and APT cache:
+To remove only artifacts owned by this builder:
 ```bash
-dpkg-buildpackage -T clean
-sudo apt-get clean
-# Optional: remove unused packages and update lists
-sudo apt-get autoremove
-sudo apt-get update
+./pyinstaller/clean-build.sh
 ```
 
 ## Installing the Package
@@ -55,10 +36,7 @@ sudo apt-get update
 To install the generated package:
 ```bash
 # Standard installation if the package is in the parent directory
-dpkg -i ../notolog_X.Y.Z_amd64.deb
-
-# Or, if using a custom output directory
-dpkg -i debian/build/notolog_X.Y.Z_amd64.deb
+sudo apt install ../notolog_X.Y.Z_ARCH.deb
 ```
 
 To uninstall:
@@ -74,12 +52,12 @@ sudo dpkg -r notolog
 
 Inspect `.deb` contents (useful before upload):
 ```bash
-dpkg-deb -c ../notolog_X.Y.Z_amd64.deb
+dpkg-deb -c ../notolog_X.Y.Z_ARCH.deb
 ```
 
 Lint your .deb for policy compliance:
 ```bash
-lintian -i ../notolog_X.Y.Z_amd64.deb
+lintian ../notolog_X.Y.Z_ARCH.deb
 ```
 
 Retrieve version or metadata from `debian/changelog` programmatically:

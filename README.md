@@ -1,7 +1,7 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-02-08 00:00:00.000000"}} -->
+<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2026-08-30 00:00:00.000000"}} -->
 # Debian Package Builder for Notolog Editor
 
-[![GitHub Release](https://img.shields.io/github/v/release/notolog/notolog-debian)](https://github.com/notolog/notolog-debian) [![GitHub License](https://img.shields.io/github/license/notolog/notolog-debian?color=yellow)](https://github.com/notolog/notolog-debian/blob/master/LICENSE) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/notolog/notolog-debian/build.yaml?color=green)](https://github.com/notolog/notolog-debian/actions/workflows/build.yaml)
+[![GitHub Release](https://img.shields.io/github/v/release/notolog/notolog-debian)](https://github.com/notolog/notolog-debian) [![GitHub License](https://img.shields.io/github/license/notolog/notolog-debian?color=yellow)](https://github.com/notolog/notolog-debian/blob/main/LICENSE) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/notolog/notolog-debian/build.yaml?color=green)](https://github.com/notolog/notolog-debian/actions/workflows/build.yaml)
 
 An isolated build repository for generating `.deb` packages for [Notolog Editor](https://github.com/notolog/notolog-editor) - a Python-powered Markdown editor featuring an integrated AI assistant, on-device LLM support, and optional file encryption.
 
@@ -17,6 +17,7 @@ This repo contains build scripts, CI/CD workflows, and Debian packaging files us
 - 📚 **Documentation**: https://notolog.app
 - 📦 **Main app repo**: https://github.com/notolog/notolog-editor
 - 🛠️ **This builder repo**: https://github.com/notolog/notolog-debian
+- 🗃️ **PPA packages**: https://launchpad.net/~notolog/+archive/ubuntu/ppa
 - ⚖️ **License**: MIT License
 
 ## Installation
@@ -37,35 +38,43 @@ sudo apt install notolog
 notolog
 ```
 
-**Supported Ubuntu versions:** Noble (24.04), Questing (25.10)
+The `amd64` PPA workflow targets Jammy (22.04 LTS), Noble (24.04 LTS), and Resolute
+(26.04 LTS). Its default `all` selection builds one application executable and one
+shared upstream source archive, then creates the three series-specific source
+packages using sortable `~ppa1~ubuntu22.04.1`-style versions. A dry run performs the
+complete build and lint checks without signing or uploading; rerun it with dry-run
+mode disabled to publish to the configured PPA.
+
+GitHub release builds are native for each architecture: `amd64` is built on Ubuntu
+22.04 and targets Ubuntu 22.04 or newer; `arm64` is built on Ubuntu 24.04 and targets
+Ubuntu 24.04 or newer. The PPA remains an `amd64`-only binary-repack workflow because
+its source upload carries the architecture-specific PyInstaller executable produced
+by the Ubuntu 22.04 workflow runner. Launchpad rebuilds the Debian package around
+that executable; it does not recompile the application. GitHub's native release
+builds are the authoritative standalone package artifacts.
 
 ---
 
 ### For Developers: Building from Source
 
-> **Note:** This repository does not contain any third-party software.
-> All third-party dependencies are bundled and attributed within the application package during the build process.
+> **Note:** The Git repository does not commit generated application binaries or
+> third-party runtime packages. Release builds bundle their dependencies and record
+> the corresponding licence information in the generated package.
 
 #### System Build Packages
 
 Essential packages required to perform the build:
 ```bash
-sudo apt-get install build-essential debhelper lintian
+sudo apt-get install build-essential zlib1g-dev debhelper devscripts lintian
 ```
 
-#### Python Dependencies
+#### Python
 
-Essential Python packages:
-```bash
-pip install pyinstaller
-```
-
-#### Optional Packages
-
-Optional system packages (install only if needed by your environment):
-```bash
-dh-autoreconf dh-exec g++ g++-12 libc6-dev libstdc++-12-dev libtool linux-libc-dev
-```
+Python 3.14 with `venv` support is required. `build.sh` creates a builder-owned
+virtual environment and installs the pinned PyInstaller and Python build tools;
+do not install a separate global PyInstaller for this workflow. Release builds pin
+the llama-cpp-python version used by the runtime-backend adapter so rebuilding a
+builder tag cannot silently select a different native ABI.
 
 ## Info
 
@@ -75,7 +84,9 @@ The date of the generated .deb file is derived from the changelog.
 
 ### Cache and Side Effects
 
-Remove any installed version of the package (e.g., `notolog` via pip) to avoid conflicts between the source and installed resources.
+The builder uses the ignored `venv/`, `pyinstaller/build/`, and `pyinstaller/dist/`
+directories. It does not uninstall an existing Notolog installation or modify the
+system APT cache.
 
 #### Conflict between local source and installed package
 
@@ -88,82 +99,97 @@ If both the local source `appname` (notolog/) and a pip-installed package `appna
 
 ### Using a Builder Script (preferred)
 
-Navigate to the `pyinstaller/` directory and run one of the following commands:
+Clone the matching application release into `src/`, then run the builder from the
+repository root:
 ```bash
-cd pyinstaller
-sudo ./build.sh
-# or
-bash build.sh
+git clone --depth 1 --branch v1.2.2 https://github.com/notolog/notolog-editor.git src
+./pyinstaller/build.sh
 ```
 
-To clean up cached data and perform linting, use the `post-build.sh` script located in the `pyinstaller/` directory:
+#### llama.cpp CPU profiles
+
+The default `auto` profile uses runtime-dispatched llama.cpp CPU backends on
+`amd64` and a portable backend on `arm64`, where compiling every backend variant
+would make release builds substantially slower. On `amd64`, llama.cpp selects the
+best backend supported by the current processor at startup, allowing one package
+to retain the ordinary architecture baseline while using F16C, AVX2, and newer
+instruction sets where available.
+
+For a smaller generic build without runtime-dispatched backends:
+
 ```bash
-bash post-build.sh
+LLAMA_CPU_PROFILE=portable ./pyinstaller/build.sh
+```
+
+The `f16c` profile enables hardware-accelerated half-precision conversions and
+can substantially improve llama.cpp CPU inference on compatible `amd64`
+processors:
+
+```bash
+grep -m1 -w f16c /proc/cpuinfo
+LLAMA_CPU_PROFILE=f16c ./pyinstaller/build.sh
+```
+
+The build host and every system running an `f16c` build must support F16C. The
+script verifies the build host automatically. Prefer `auto` for distributed
+packages; use `runtime`, `portable`, or `f16c` only for controlled builds with
+specific performance, size, or hardware requirements.
+
+### Release tags
+
+Application and builder tags have different purposes:
+
+* `notolog-editor` uses the upstream application tag, for example `v1.2.2`.
+* `notolog-debian` uses the full Debian version, for example
+  `v1.2.2-1ubuntu1`.
+
+The builder workflow requires its release tag to equal the version in
+`debian/changelog`, then strips the Debian revision when selecting the application
+source. Builder tag `v1.2.2-1ubuntu1` therefore checks out application tag
+`v1.2.2`. Create the builder tag only after the matching application tag is public
+and the builder's Launchpad dry run succeeds.
+
+For a release:
+
+1. Run the **Upload to Launchpad PPA** workflow from the release commit with
+   `version_override` set to the application tag, `ubuntu_series` set to `all`,
+   `ppa_revision` set to `1`, and `dry_run` enabled.
+2. Review the generated source-package artifact and confirm that all source,
+   lint, bundle, frozen-module, GUI smoke, architecture, glibc, and hardening
+   checks pass.
+3. Create and push the annotated builder tag using the full Debian version.
+4. Run the same Launchpad workflow with `dry_run` disabled. Do not start another
+   publication run until the queued workflow and Launchpad builds finish.
+
+Each upload version is immutable. If a published package must be rebuilt, increase
+the Debian revision or rerun with the next `ppa_revision` instead of moving an
+already published tag or reusing an accepted source-package version.
+
+To remove builder-owned generated artifacts:
+```bash
+./pyinstaller/clean-build.sh
 ```
 
 ### Built Package Installation
 
 The built package can be installed with the command below.
 ```bash
-sudo dpkg -i notolog_X.Y.Z_amd64.deb
+sudo dpkg -i notolog_X.Y.Z_ARCH.deb
 ```
 
 *If the package was built on a local machine, the resulting `.deb` file is typically located in the parent directory (`..`) relative to where the `debian/` directory resides.*
 
-### Using a .spec File (manual build without script)
+### PyInstaller spec file
 
-Clean up .pyc files before building:
-```bash
-find . -name "*.pyc" -delete
-find . -name "__pycache__" -delete
-```
-
-Ensure a clean PyInstaller environment:
-```bash
-pyinstaller --clean notolog-onefile.spec
-```
-Run the build with one of the following options:
-```bash
-pyinstaller notolog-onefile.spec
-```
-
-Set the `app_root` variable if building from within the `pyinstaller/` directory. Leave it unset if building from the project root.
-
-### CLI Build Examples
-
-One-file build:
-```bash
-pyinstaller --onefile --noconfirm --name=notolog \
-  --collect-all=notolog notolog/app.py \
-  --add-data="notolog:notolog" \
-  --add-data="docs/*:docs" \
-  --add-data="CHANGELOG.md:." \
-  --add-data="CODE_OF_CONDUCT.md:." \
-  --add-data="CONTRIBUTING.md:." \
-  --add-data="LICENSE:." \
-  --add-data="README.md:." \
-  --add-data="SECURITY.md:." \
-  --add-data="ThirdPartyNotices.md:." \
-  --exclude-module __pycache__ \
-  --exclude-module "*.pyc" \
-  --exclude-module "*.pyo" \
-  --add-data="../venv/notolog/lib/python3.11/site-packages/emoji:emoji"
-```
-
-One-dir build:
-(Same as above, just replace `--onefile` with `--onedir`.)
+`pyinstaller/notolog-onefile.spec` is the authoritative standalone-binary definition.
+Use `./pyinstaller/build.sh` so the native bootloader, llama.cpp library, dependency
+audit, license report, and Debian package are produced consistently.
 
 ## PyInstaller Init Script
 
 The init script `pyinstaller/runtime_hooks/init.py` configures the app on first run based on user settings and package type. It verifies the current package type and adjusts settings accordingly.
 
 ### Possible Issues
-
-#### NumPy Import Error
-
-> Error importing numpy: you should not try to import numpy from its source directory
-
-The issue may be caused by incompatible NumPy versions. Version 1.26.4 works fine, while versions 2.1.0 and later (e.g., 2.2.2) may result in errors. Check the version compatibility.
 
 #### Qt Platform Plugin (xcb) Error
 
@@ -306,22 +332,20 @@ Use these steps to verify what's bundled into the PyInstaller binary - important
 
 ### Confirm What's Inside
 
-Inspect .deb contents:
+Inspect `.deb` contents:
 ```bash
-dpkg -c notolog.deb | grep '\.so'
+dpkg-deb -c notolog_*.deb
 ```
 
-Find bundled shared objects in PyInstaller output:
-```bash
-find pyinstaller/dist/ -name "*.so*"
-```
+PyInstaller one-file packages store shared objects inside the executable archive,
+so they do not appear as separate files in `dpkg-deb -c` output.
 
 If using a `--onefile` PyInstaller build, run the app once to trigger runtime extraction. Then inspect with:
 ```bash
 ps aux | grep notolog
 lsof -p $(pgrep notolog) | grep _MEI
-# Or manually inspect the runtime directory:
-find /usr/lib/notolog/runtime -type f
+# The default extraction directory is a private, per-process _MEI directory
+# under the user's secure temporary directory.
 ```
 
 Optional: Use `strace` if you need syscall-level info:
@@ -361,17 +385,19 @@ Inside the viewer shell:
 
 To confirm `libllama.so` and its dependencies are dynamically linked and runtime-bundled:
 ```bash
-ldd /usr/lib/notolog/runtime/_MEI*/llama_cpp/lib/libllama.so
+RUNTIME_DIR=$(lsof -p "$(pgrep -n notolog)" | awk '/_MEI/ {print $9; exit}')
+find "$RUNTIME_DIR" -path '*llama_cpp*' -name 'libllama.so' -exec ldd {} \;
 ```
 
 ### License Check
 
 To verify bundled binaries for license metadata, use licensecheck:
 ```bash
-licensecheck --shortname-scheme new --recursive /usr/lib/notolog/runtime/_MEIXXXX/
+licensecheck --shortname-scheme new --recursive "$RUNTIME_DIR"
 ```
 
-Replace `_MEIXXXX` with the actual unpacked PyInstaller runtime path.
+`RUNTIME_DIR` is discovered from the running process because PyInstaller creates a
+private randomized extraction directory for every launch.
 
 The `--shortname-scheme new` flag ensures SPDX-style identifiers (e.g. mit, lgpl-2.1+, etc.).
 
@@ -389,9 +415,9 @@ This confirms no credentials, user paths, or environment variables leaked into t
 
 ---
 
-For easier debugging and inspection, consider building with `--onedir`.
-
-Note: onedir is not recommended for final Debian packaging, as it unpacks dozens of files and complicates reproducibility. Stick to `--onefile` for cleaner shipping.
+For easier debugging and inspection, a temporary `--onedir` build can make bundled
+libraries directly visible. The release definition remains the audited one-file
+specification used by `build.sh`.
 
 ## Metadata
 
@@ -425,7 +451,7 @@ All third-party dependencies are pulled by the main application during build and
 🦙 The CPU-only llama-cpp backend is built from source and dynamically links to:
 
 - `libgomp` and `libstdc++`: covered under the GPL with the [GCC Runtime Library Exception](https://www.gnu.org/licenses/gcc-exception-3.1.html), which permits linking from non-GPL software.
-- MIT-licensed internal `libggml` backends (`libggml.so`, `libggml-base.so`, `libggml-cpu.so`).
+- MIT-licensed internal `libggml` backends (`libggml.so`, `libggml-base.so`, and the selected `libggml-cpu-*.so` variant).
 
 ---
 _This README.md file has been carefully crafted and edited using the Notolog Editor itself._

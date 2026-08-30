@@ -16,7 +16,27 @@ export DH_VERBOSE = 1
 	dh $@
 
 override_dh_auto_install:
+	# Refuse to produce a package whose declared architecture differs from the executable.
+	host_arch="$$(dpkg-architecture -qDEB_HOST_ARCH)"; \
+	case "$$host_arch" in \
+		amd64) expected_machine="Advanced Micro Devices X86-64" ;; \
+		arm64) expected_machine="AArch64" ;; \
+		*) echo "Unsupported Debian architecture: $$host_arch" >&2; exit 1 ;; \
+	esac; \
+	actual_machine="$$(LC_ALL=C readelf -h pyinstaller/dist/notolog | sed -n 's/^ *Machine: *//p')"; \
+	test "$$actual_machine" = "$$expected_machine" || { \
+		echo "Binary architecture $$actual_machine does not match $$host_arch" >&2; \
+		exit 1; \
+	}
 	# Ensure the full path exists and copy the binary
 	mkdir -p debian/notolog/usr/bin
-	mkdir -p debian/notolog/usr/lib/notolog/runtime
-	install pyinstaller/dist/notolog debian/notolog/usr/bin/notolog
+	install -m 0755 pyinstaller/dist/notolog debian/notolog/usr/bin/notolog
+
+override_dh_shlibdeps:
+	dh_shlibdeps
+	test -s pyinstaller/embedded-glibc-version.txt
+	printf 'notolog:EmbeddedDepends=libc6 (>= %s)\n' \
+		"$$(cat pyinstaller/embedded-glibc-version.txt)" >> debian/notolog.substvars
+
+override_dh_installchangelogs:
+	dh_installchangelogs src/CHANGELOG.md

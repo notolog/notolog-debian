@@ -17,11 +17,11 @@ builder_dir = current_dir.parent
 project_root = builder_dir.parent
 
 markdown_file = project_root / "src" / "CHANGELOG.md"
-debian_changelog_file = builder_dir / "debian" / "changelog"
+debian_changelog_file = project_root / "debian" / "changelog"
 
 # Info
 package_name = "notolog"
-maintainer = "Notolog <dev@notolog.app>"
+maintainer = "Vadim Bakhrenkov <dev@notolog.app>"
 urgency = "medium"
 """
 * unstable: 🧪 For development and testing (most common for new/first packages)
@@ -29,7 +29,7 @@ urgency = "medium"
 * stable: For release-ready, production packages
 * experimental: For packages not ready for general use or that might break things
 """
-status = "unstable"
+status = "resolute"
 
 # Read Markdown changelog
 with open(markdown_file, encoding="utf-8") as f:
@@ -45,7 +45,7 @@ match = re.search(
 if not match:
     raise ValueError("No valid version block found in CHANGELOG.md")
 
-version = match.group("version")
+version = f"{match.group('version')}-1ubuntu1"
 date = match.group("date")
 changes = match.group("changes").strip()
 

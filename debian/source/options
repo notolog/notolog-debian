@@ -1,5 +1,5 @@
 # Debian source package options
-# Exclude files/directories from source package
+# Exclude files/directories from generated source-package changes
 # SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 

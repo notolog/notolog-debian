@@ -10,43 +10,19 @@
 """
 Pre-build script for Notolog Debian package.
 
-This script patches the pyproject.toml to ensure compatibility with PyInstaller:
-- Pins tomli to version 2.0.1 to avoid import errors in PyInstaller bundles.
-- Generates version.txt for the build process.
+This script reads the project metadata and generates version.txt for the build.
 """
 
 import os
-import tomli
-import tomli_w
+import tomllib
 
 file_path = os.path.join(os.path.dirname(__file__), "..", "..", "src", "pyproject.toml")
 
 # Load TOML (read-only)
 with open(file_path, "rb") as f:
-    data = tomli.load(f)
+    data = tomllib.load(f)
 
-# Safely navigate and update nested structure
-tool = data.setdefault("tool", {})
-poetry = tool.setdefault("poetry", {})
-dependencies = poetry.setdefault("dependencies", {})
-
-# Patch tomli to exact version 2.0.1 to avoid mypyc-compiled 2.4.0+
-# which causes "ModuleNotFoundError: No module named '...__mypyc'" in PyInstaller
-TOMLI_PINNED_VERSION = "=2.0.1"
-if "tomli" in dependencies:
-    original_version = dependencies["tomli"]
-    if original_version != TOMLI_PINNED_VERSION:
-        dependencies["tomli"] = TOMLI_PINNED_VERSION
-        print(f"Patched tomli: {original_version} -> {TOMLI_PINNED_VERSION}")
-    else:
-        print(f"tomli already pinned to {TOMLI_PINNED_VERSION}")
-else:
-    dependencies["tomli"] = TOMLI_PINNED_VERSION
-    print(f"Added tomli {TOMLI_PINNED_VERSION}")
-
-# Save TOML back
-with open(file_path, "wb") as f:
-    tomli_w.dump(data, f)
+poetry = data.get("tool", {}).get("poetry", {})
 
 # Generate version.txt from pyproject.toml
 version = poetry.get("version")

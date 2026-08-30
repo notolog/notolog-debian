@@ -27,31 +27,34 @@
 
 name: Upload to Launchpad PPA
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Version override (e.g., v1.2.0). Leave empty for latest release."
+        description: "Application tag (e.g., v1.2.2). Leave empty for latest release."
         required: false
         default: ""
       ubuntu_series:
-        description: "Ubuntu series to build for"
+        description: "Ubuntu series to publish"
         required: true
-        default: "noble"
+        default: "all"
         type: choice
         options:
+          - all # All supported LTS releases from one source archive
+          - resolute # 26.04 LTS
           - noble # 24.04 LTS
           - jammy # 22.04 LTS
-          - oracular # 24.10
-          - questing # 25.10
-      ubuntu_series_override:
-        description: "Override series (leave empty to use dropdown above)"
-        required: false
-        default: ""
       ppa_name:
         description: "PPA name (default: ppa). Check your PPA URL on Launchpad."
         required: false
         default: "ppa"
+      ppa_revision:
+        description: "PPA rebuild revision; start at 1 and increment after an accepted upload"
+        required: true
+        default: "1"
       dry_run:
         description: "Dry run - build but do not upload to PPA"
         required: false
@@ -59,8 +62,9 @@ on:
         type: boolean
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: launchpad-${{ github.repository }}
+  cancel-in-progress: false
+  queue: max
 
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
@@ -69,13 +73,14 @@ env:
 
 jobs:
   upload-ppa:
-    runs-on: ubuntu-latest
+    # Build on the oldest supported Ubuntu to preserve glibc compatibility.
+    runs-on: ubuntu-22.04
     steps:
       - name: Get system info
         run: |
           PLATFORM_ARCH=$(uname -m)
           echo "$PLATFORM_ARCH"
-          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> $GITHUB_ENV
+          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> "$GITHUB_ENV"
           uname -a
 
       - name: Install jq for JSON parsing
@@ -84,13 +89,16 @@ jobs:
           sudo apt-get install -y jq
 
       - name: Determine package version
+        env:
+          VERSION_OVERRIDE: ${{ github.event.inputs.version_override }}
         run: |
-          if [ -n "${{ github.event.inputs.version_override }}" ]; then
-            VERSION="${{ github.event.inputs.version_override }}"
+          if [ -n "$VERSION_OVERRIDE" ]; then
+            VERSION="$VERSION_OVERRIDE"
             echo "✅ Using manual version override: $VERSION"
           else
             echo "Fetching latest version from GitHub API..."
-            VERSION=$(curl -s ${{ env.APP_RELEASES_URL }}/latest | jq -r '.tag_name // empty')
+            VERSION=$(curl --fail --silent --show-error "${{ env.APP_RELEASES_URL }}/latest" \
+              | jq -r '.tag_name // empty')
             if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
               echo "❌ ERROR: Failed to fetch version from GitHub API"
               echo "   URL: ${{ env.APP_RELEASES_URL }}/latest"
@@ -99,38 +107,52 @@ jobs:
             fi
             echo "✅ Fetched latest version: $VERSION"
           fi
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid upstream release version: $VERSION" >&2
+            exit 1
+          fi
           echo "Building version: $VERSION"
-          echo "PACKAGE_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "PACKAGE_VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Checkout builder repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Checkout project source into ./src (shallow clone)
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ env.APP_GIT_REPOSITORY }}
           path: src
           fetch-tags: true
           ref: refs/tags/${{ env.PACKAGE_VERSION }}
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set reproducible build timestamp
+        run: |
+          BUILD_EPOCH=$(git -C src show -s --format=%ct HEAD)
+          case "$BUILD_EPOCH" in
+            ''|*[!0-9]*) echo "Invalid application commit timestamp" >&2; exit 1 ;;
+          esac
+          echo "SOURCE_DATE_EPOCH=$BUILD_EPOCH" >> "$GITHUB_ENV"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install Python dependencies
         run: |
           python3 --version
-          python3 -m pip install --upgrade pip
-          pip install poetry-core build pyinstaller reuse
+          python3 -m pip install --upgrade "pip==26.2.1"
+          python3 -m pip install "reuse==6.2.0"
 
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian dput
+          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian dput xxd libegl1
           # Optional: install all declared build dependencies from debian/control
-          sudo apt-get build-dep . || true
 
       - name: Print working directory
         run: pwd
@@ -144,7 +166,9 @@ jobs:
 
       - name: Build PyInstaller binary with PIE hardening
         env:
+          LLAMA_CPU_PROFILE: "runtime"
           SKIP_DEB_BUILD: "true" # We only need the binary, not the .deb
+          TARGET_SERIES_OVERRIDE: "jammy"
         run: |
           cd ./pyinstaller
 
@@ -153,14 +177,6 @@ jobs:
 
           # Run the main build script (includes PIE hardening)
           ./build.sh
-
-          # Verify PIE hardening
-          echo "🔍 Verifying PIE hardening..."
-          hardening-check ./dist/notolog || {
-            echo "❌ PIE hardening check failed."
-            exit 1
-          }
-          echo "✅ PIE hardening verified"
 
           # Verify binary was created
           if [ ! -f "dist/notolog" ]; then
@@ -187,6 +203,7 @@ jobs:
           reuse lint || (echo '❌ SPDX compliance failed.' && exit 1)
 
       - name: Import GPG key
+        if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -210,12 +227,12 @@ jobs:
           chmod 600 ~/.gnupg/*.conf
 
           # Import the GPG key (supports both ASCII-armored and base64 formats)
-          if echo "$GPG_PRIVATE_KEY" | grep -q "BEGIN PGP"; then
+          if printf '%s' "$GPG_PRIVATE_KEY" | grep -q "BEGIN PGP"; then
             # ASCII-armored format
-            echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+            printf '%s' "$GPG_PRIVATE_KEY" | gpg --batch --import
           else
             # Base64-encoded format
-            echo "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
+            printf '%s' "$GPG_PRIVATE_KEY" | base64 -d | gpg --batch --import
           fi
 
           # Restart gpg-agent to apply new configuration
@@ -237,137 +254,153 @@ jobs:
 
           # Verify signing works
           echo "Testing GPG signing..."
-          echo "test" | gpg --batch --yes --pinentry-mode loopback \
-            --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign > /dev/null 2>&1 && \
-            echo "✅ GPG signing test passed" || {
-              echo "⚠️ Signing test failed, trying with passphrase..."
-              echo "test" | gpg --batch --yes --pinentry-mode loopback \
-                --passphrase "$GPG_PASSPHRASE" \
-                --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign > /dev/null 2>&1 && \
-                echo "✅ GPG signing test passed (with passphrase)" || \
-                echo "❌ GPG signing test failed"
-            }
+          if echo "test" | gpg --batch --yes --pinentry-mode loopback \
+            --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign > /dev/null 2>&1; then
+            echo "✅ GPG signing test passed"
+          else
+            echo "⚠️ Signing test failed, trying with passphrase..."
+            echo "test" | gpg --batch --yes --pinentry-mode loopback \
+              --passphrase-fd 3 \
+              --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign \
+              3<<< "$GPG_PASSPHRASE" > /dev/null 2>&1
+            echo "✅ GPG signing test passed (with passphrase)"
+          fi
 
           # Show key info (public only)
           echo ""
           echo "Imported key:"
           gpg --list-keys "${{ secrets.GPG_KEY_ID }}" 2>/dev/null | head -5
 
-      - name: Update changelog for Ubuntu series
+      - name: Select Ubuntu series
+        env:
+          SERIES_SELECTION: ${{ github.event.inputs.ubuntu_series }}
         run: |
-          # Use override if provided, otherwise use dropdown selection
-          if [ -n "${{ github.event.inputs.ubuntu_series_override }}" ]; then
-            SERIES="${{ github.event.inputs.ubuntu_series_override }}"
-            echo "📋 Using manual override series: $SERIES"
-          else
-            SERIES="${{ github.event.inputs.ubuntu_series }}"
-            echo "📋 Using dropdown series: $SERIES"
-          fi
-
-          # Store series for later steps
-          echo "TARGET_SERIES=$SERIES" >> $GITHUB_ENV
-
-          # Update distribution in changelog
-          if grep -q "noble\|stable\|jammy\|oracular\|questing" debian/changelog; then
-            sed -i "1s/noble\|stable\|jammy\|oracular\|questing/$SERIES/" debian/changelog
-            echo "✅ Distribution updated to: $SERIES"
-          else
-            echo "⚠️  Warning: Expected distribution not found in changelog"
-            # Force set the distribution
-            sed -i "1s/) [^;]*;/) $SERIES;/" debian/changelog
-          fi
-
-          # Append series suffix to version to allow multi-series uploads
-          # e.g., 1.2.0-1ubuntu1 becomes 1.2.0-1ubuntu1~noble or 1.2.0-1ubuntu1~questing
-          CURRENT_VERSION=$(dpkg-parsechangelog --show-field Version)
-          if [[ ! "$CURRENT_VERSION" =~ ~${SERIES}$ ]]; then
-            NEW_VERSION="${CURRENT_VERSION}~${SERIES}"
-            sed -i "1s/${CURRENT_VERSION}/${NEW_VERSION}/" debian/changelog
-            echo "✅ Version updated: $CURRENT_VERSION → $NEW_VERSION"
-          else
-            echo "✅ Version already has series suffix: $CURRENT_VERSION"
-          fi
-
-          echo ""
-          echo "Updated changelog:"
-          head -3 debian/changelog
+          case "$SERIES_SELECTION" in
+            all) SERIES_LIST="jammy noble resolute" ;;
+            jammy|noble|resolute) SERIES_LIST="$SERIES_SELECTION" ;;
+            *) echo "❌ Unsupported Ubuntu series: $SERIES_SELECTION" >&2; exit 1 ;;
+          esac
+          echo "TARGET_SERIES_LIST=$SERIES_LIST" >> "$GITHUB_ENV"
+          echo "Selected Ubuntu series: $SERIES_LIST"
 
       - name: Build source package
         env:
           DEBSIGN_KEYID: ${{ secrets.GPG_KEY_ID }}
           DEBEMAIL: ${{ vars.DEBEMAIL }}
           DEBFULLNAME: ${{ vars.DEBFULLNAME }}
-          GPG_TTY: $(tty)
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+          PPA_REVISION: ${{ github.event.inputs.ppa_revision }}
         run: |
-          # Build and sign source package
-          # GPG passphrase was cached in gpg-agent via gpg-preset-passphrase
-          dpkg-buildpackage -S -sa -k"${{ secrets.GPG_KEY_ID }}"
+          # PPA builds are currently amd64-only because this source upload carries
+          # the native PyInstaller executable produced by this runner.
+          BASE_CHANGELOG="$RUNNER_TEMP/notolog-changelog"
+          BASE_CONTROL="$RUNNER_TEMP/notolog-control"
+          PACKAGE_STAGING_DIR=$(mktemp -d "$RUNNER_TEMP/notolog-source-package.XXXXXX")
+          cp debian/changelog "$BASE_CHANGELOG"
+          cp debian/control "$BASE_CONTROL"
+          restore_packaging_files() {
+            cp "$BASE_CHANGELOG" debian/changelog
+            cp "$BASE_CONTROL" debian/control
+          }
+          trap restore_packaging_files EXIT
 
-          # Get the actual version from changelog (includes ~series suffix like 1.2.0-1ubuntu1~questing)
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-          echo "Full package version: $FULL_VERSION"
+          # A non-native package needs a pristine upstream archive. Keep the
+          # architecture-matched executable, but exclude local/CI build state.
+          UPSTREAM_VERSION=$(dpkg-parsechangelog --show-field Version | cut -d- -f1)
+          tar --sort=name \
+            --mtime="@${SOURCE_DATE_EPOCH}" \
+            --owner=0 --group=0 --numeric-owner \
+            --pax-option=delete=atime,delete=ctime \
+            --create --xz --file="../notolog_${UPSTREAM_VERSION}.orig.tar.xz" \
+            --exclude-vcs \
+            --exclude='./build' \
+            --exclude='./debian' \
+            --exclude='./node_modules' \
+            --exclude='./pyinstaller/build' \
+            --exclude='./pyinstaller/pyi-source' \
+            --exclude='./source-package' \
+            --exclude='./venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            .
 
-          # Verify signatures
-          echo "Verifying signatures..."
-          gpg --verify "../notolog_${FULL_VERSION}.dsc" && echo "✅ DSC signature valid" || echo "⚠️  DSC signature check"
-          gpg --verify "../notolog_${FULL_VERSION}_source.changes" && echo "✅ Changes signature valid" || echo "⚠️  Changes signature check"
+          : > "$PACKAGE_STAGING_DIR/versions.txt"
 
-          # Show what was created
+          case "$PPA_REVISION" in
+            ''|*[!0-9]*|0) echo "Invalid PPA revision: $PPA_REVISION" >&2; exit 1 ;;
+          esac
+
+          for SERIES in $TARGET_SERIES_LIST; do
+            cp "$BASE_CHANGELOG" debian/changelog
+            cp "$BASE_CONTROL" debian/control
+            sed -i 's/^Architecture: amd64 arm64$/Architecture: amd64/' debian/control
+
+            case "$SERIES" in
+              jammy) SERIES_VERSION="22.04" ;;
+              noble) SERIES_VERSION="24.04" ;;
+              resolute) SERIES_VERSION="26.04" ;;
+              *) echo "Unsupported Ubuntu series: $SERIES" >&2; exit 1 ;;
+            esac
+            BASE_VERSION=$(dpkg-parsechangelog --show-field Version)
+            FULL_VERSION="${BASE_VERSION}~ppa${PPA_REVISION}~ubuntu${SERIES_VERSION}.1"
+            sed -i "1s/${BASE_VERSION}/${FULL_VERSION}/" debian/changelog
+            sed -i "1s/) [^;]*;/) ${SERIES};/" debian/changelog
+            echo "Building source package $FULL_VERSION for $SERIES"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              dpkg-buildpackage -S -sa -us -uc
+            else
+              dpkg-buildpackage -S -sa -k"${{ secrets.GPG_KEY_ID }}"
+              gpg --verify "../notolog_${FULL_VERSION}.dsc"
+              gpg --verify "../notolog_${FULL_VERSION}_source.changes"
+            fi
+
+            printf '%s=%s\n' "$SERIES" "$FULL_VERSION" >> "$PACKAGE_STAGING_DIR/versions.txt"
+            cp "../notolog_${FULL_VERSION}.debian.tar.xz" "$PACKAGE_STAGING_DIR/"
+            cp "../notolog_${FULL_VERSION}.dsc" "$PACKAGE_STAGING_DIR/"
+            cp "../notolog_${FULL_VERSION}_source.changes" "$PACKAGE_STAGING_DIR/"
+            cp "../notolog_${FULL_VERSION}_source.buildinfo" "$PACKAGE_STAGING_DIR/"
+          done
+
+          cp "../notolog_${UPSTREAM_VERSION}.orig.tar.xz" "$PACKAGE_STAGING_DIR/"
+          mkdir source-package
+          cp "$PACKAGE_STAGING_DIR"/* source-package/
           echo "Source package files created:"
-          ls -lh ../notolog_*
+          ls -lh source-package/
 
       - name: Verify source package contains binary
         run: |
-          # Extract and verify the source package includes the PyInstaller binary
-          # Get the actual version from changelog (includes ~series suffix like 1.2.0-1ubuntu1~questing)
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-
-          # Extract upstream version for directory name
-          # dpkg-source extracts to <package>-<upstream_version> where upstream is before first hyphen
-          # E.g., 1.2.0-1ubuntu1~questing -> 1.2.0
-          UPSTREAM_VER=$(echo "$FULL_VERSION" | cut -d'-' -f1)
-
-          echo "Full package version: $FULL_VERSION"
-          echo "Upstream version for directory: $UPSTREAM_VER"
-
-          mkdir -p /tmp/verify-source
-          cd /tmp/verify-source
-          dpkg-source -x ${{ github.workspace }}/../notolog_${FULL_VERSION}.dsc
-
-          if [ -f "notolog-${UPSTREAM_VER}/pyinstaller/dist/notolog" ]; then
-            echo "✅ PyInstaller binary is included in source package"
-            ls -lh notolog-${UPSTREAM_VER}/pyinstaller/dist/notolog
-            file notolog-${UPSTREAM_VER}/pyinstaller/dist/notolog
-          else
-            echo "❌ ERROR: PyInstaller binary NOT found in source package!"
-            echo "Looking for: notolog-${UPSTREAM_VER}/pyinstaller/dist/notolog"
-            echo ""
-            echo "Extracted directories:"
-            ls -la
-            echo ""
-            echo "Contents of pyinstaller directory (if exists):"
-            find . -name "pyinstaller" -type d -exec ls -la {} \; 2>/dev/null || echo "No pyinstaller directory found"
-            exit 1
-          fi
-
-          # Verify required doc files are present
-          echo ""
-          echo "Checking required documentation files..."
-          for doc in CHANGELOG.md CODE_OF_CONDUCT.md CONTRIBUTING.md LICENSE README.md SECURITY.md ThirdPartyNotices.md; do
-            if [ -f "notolog-${UPSTREAM_VER}/src/${doc}" ]; then
-              echo "  ✅ src/${doc}"
-            else
-              echo "  ⚠️  src/${doc} NOT FOUND (may be missing in upstream)"
+          while IFS='=' read -r SERIES FULL_VERSION; do
+            VERIFY_DIR="$RUNNER_TEMP/verify-source-$SERIES"
+            dpkg-source -x "source-package/notolog_${FULL_VERSION}.dsc" "$VERIFY_DIR"
+            if [ ! -f "$VERIFY_DIR/pyinstaller/dist/notolog" ]; then
+              echo "❌ PyInstaller binary missing from $SERIES source package" >&2
+              exit 1
             fi
-          done
+            file "$VERIFY_DIR/pyinstaller/dist/notolog"
+          done < source-package/versions.txt
 
       - name: Lint source package
         run: |
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-          lintian ../notolog_${FULL_VERSION}.dsc || true
+          while IFS='=' read -r SERIES FULL_VERSION; do
+            echo "Linting $FULL_VERSION for $SERIES"
+            lintian --fail-on error "source-package/notolog_${FULL_VERSION}.dsc"
+          done < source-package/versions.txt
 
       - name: Configure dput
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          PPA_NAME: ${{ github.event.inputs.ppa_name }}
+          LP_USERNAME: ${{ secrets.LP_USERNAME }}
         run: |
+          if [[ ! "$PPA_NAME" =~ ^[a-z0-9][a-z0-9+.-]*$ ]]; then
+            echo "Invalid PPA name" >&2
+            exit 1
+          fi
+          if [[ ! "$LP_USERNAME" =~ ^[a-z0-9][a-z0-9+.-]*$ ]]; then
+            echo "Invalid Launchpad username" >&2
+            exit 1
+          fi
           # PPA path format: ~USERNAME/PPA_NAME/ubuntu/
           # Default PPA name on Launchpad is 'ppa', not the project name
           # Check your PPA URL: https://launchpad.net/~USERNAME/+archive/ubuntu/PPA_NAME
@@ -375,28 +408,23 @@ jobs:
           [notolog-ppa]
           fqdn = ppa.launchpad.net
           method = ftp
-          incoming = ~${{ secrets.LP_USERNAME }}/${{ github.event.inputs.ppa_name }}/ubuntu/
+          incoming = ~$LP_USERNAME/$PPA_NAME/ubuntu/
           login = anonymous
           allow_unsigned_uploads = 0
           EOF
           echo "dput configuration:"
           cat ~/.dput.cf
           echo ""
-          echo "📋 PPA path: ~${{ secrets.LP_USERNAME }}/${{ github.event.inputs.ppa_name }}/ubuntu/"
+          echo "📋 PPA path: ~$LP_USERNAME/$PPA_NAME/ubuntu/"
           echo "   Verify this matches your Launchpad PPA URL"
 
       - name: Upload to PPA
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          # Get the actual version from changelog (includes ~series suffix)
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-          echo "Uploading version: $FULL_VERSION"
-          echo "Target series: ${{ env.TARGET_SERIES }}"
-          echo ""
-          echo "Uploading to PPA..."
-          # Note: --unchecked skips local signature verification
-          # Launchpad performs its own server-side signature verification
-          dput --unchecked notolog-ppa ../notolog_${FULL_VERSION}_source.changes
+          while IFS='=' read -r SERIES FULL_VERSION; do
+            echo "Uploading $FULL_VERSION to $SERIES..."
+            dput notolog-ppa "source-package/notolog_${FULL_VERSION}_source.changes"
+          done < source-package/versions.txt
           echo ""
           echo "✅ Upload complete!"
           echo ""
@@ -410,30 +438,14 @@ jobs:
         run: |
           echo "🔍 DRY RUN - Skipping PPA upload"
           echo "Source package was built successfully but not uploaded."
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-          echo "Version: $FULL_VERSION"
-          echo "Target series: ${{ env.TARGET_SERIES }}"
-          echo "Files that would be uploaded:"
-          ls -lh ../notolog_${FULL_VERSION}*
-
-      - name: Prepare artifacts for upload
-        run: |
-          # actions/upload-artifact doesn't allow ../ paths, so copy to workspace
-          FULL_VERSION=$(dpkg-parsechangelog --show-field Version)
-          mkdir -p source-package
-          cp ../notolog_${FULL_VERSION}.dsc source-package/ || true
-          cp ../notolog_${FULL_VERSION}.tar.* source-package/ || true
-          cp ../notolog_${FULL_VERSION}_source.changes source-package/ || true
-          cp ../notolog_${FULL_VERSION}_source.buildinfo source-package/ || true
-          echo "Prepared artifacts:"
           ls -lh source-package/
 
       - name: Upload source artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: source-package-${{ env.PACKAGE_VERSION }}
           path: source-package/
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Validate changelog
         run: dpkg-parsechangelog
