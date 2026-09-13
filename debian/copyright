@@ -2350,3 +2350,8 @@ License: MIT
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  IN THE SOFTWARE.
+
+Files: bundled/python-packages/sounddevice*
+Copyright: 2015-2025 Matthias Geier
+License: MIT
+Comment: PCM playback uses the separately packaged system libportaudio2.

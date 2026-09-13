@@ -3,7 +3,7 @@ Section: editors
 Priority: optional
 Maintainer: Vadim Bakhrenkov <dev@notolog.app>
 Rules-Requires-Root: no
-Build-Depends: binutils, debhelper-compat (= 13)
+Build-Depends: binutils, debhelper-compat (= 13), libportaudio2
 Standards-Version: 4.7.4
 Homepage: https://notolog.com
 Vcs-Browser: https://github.com/notolog/notolog-debian
@@ -15,6 +15,9 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
  ${notolog:EmbeddedDepends},
+ ca-certificates,
+ curl,
+ libportaudio2,
  libdbus-1-3,
  libegl1,
  libfontconfig1,
@@ -54,6 +57,7 @@ Description: Markdown editor with AI assistant
  and writers focus, prototype ideas, and sharpen their Markdown fluency.
  .
  Features include markdown syntax highlighting, encryption support,
- on-device LLM integration (ONNX, llama.cpp), and multi-language support.
+ on-device LLM integration (ONNX, llama.cpp), local text-to-speech,
+ and multi-language support.
  .
  For more information, see https://notolog.app

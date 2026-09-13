@@ -1,4 +1,3 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2026-08-30 00:00:00.000000"}} -->
 # Debian Package Builder for Notolog Editor
 
 [![GitHub Release](https://img.shields.io/github/v/release/notolog/notolog-debian)](https://github.com/notolog/notolog-debian) [![GitHub License](https://img.shields.io/github/license/notolog/notolog-debian?color=yellow)](https://github.com/notolog/notolog-debian/blob/main/LICENSE) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/notolog/notolog-debian/build.yaml?color=green)](https://github.com/notolog/notolog-debian/actions/workflows/build.yaml)
@@ -65,7 +64,7 @@ builds are the authoritative standalone package artifacts.
 
 Essential packages required to perform the build:
 ```bash
-sudo apt-get install build-essential zlib1g-dev debhelper devscripts lintian
+sudo apt-get install build-essential zlib1g-dev debhelper devscripts lintian libegl1 libportaudio2
 ```
 
 #### Python
@@ -76,25 +75,6 @@ do not install a separate global PyInstaller for this workflow. Release builds p
 the llama-cpp-python version used by the runtime-backend adapter so rebuilding a
 builder tag cannot silently select a different native ABI.
 
-## Info
-
-### Binary Package Date
-
-The date of the generated .deb file is derived from the changelog.
-
-### Cache and Side Effects
-
-The builder uses the ignored `venv/`, `pyinstaller/build/`, and `pyinstaller/dist/`
-directories. It does not uninstall an existing Notolog installation or modify the
-system APT cache.
-
-#### Conflict between local source and installed package
-
-If both the local source `appname` (notolog/) and a pip-installed package `appname` (notolog) exist, PyInstaller may bundle the wrong version depending on the `PYTHONPATH` and Python's module resolution order.
-
-* Local Source Directory: If `appname` is a local directory in your project root, PyInstaller will use the local source files, provided they are imported directly in the code.
-* Installed Package: If your environment resolves the `appname` module from site-packages, PyInstaller will bundle the installed version from `pip`.
-
 ## Building
 
 ### Using a Builder Script (preferred)
@@ -102,7 +82,7 @@ If both the local source `appname` (notolog/) and a pip-installed package `appna
 Clone the matching application release into `src/`, then run the builder from the
 repository root:
 ```bash
-git clone --depth 1 --branch v1.2.2 https://github.com/notolog/notolog-editor.git src
+git clone --depth 1 --branch v1.2.3 https://github.com/notolog/notolog-editor.git src
 ./pyinstaller/build.sh
 ```
 
@@ -139,15 +119,15 @@ specific performance, size, or hardware requirements.
 
 Application and builder tags have different purposes:
 
-* `notolog-editor` uses the upstream application tag, for example `v1.2.2`.
+* `notolog-editor` uses the upstream application tag, for example `v1.2.3`.
 * `notolog-debian` uses the full Debian version, for example
-  `v1.2.2-1ubuntu1`.
+  `v1.2.3-1ubuntu1`.
 
 The builder workflow requires its release tag to equal the version in
-`debian/changelog`, then strips the Debian revision when selecting the application
-source. Builder tag `v1.2.2-1ubuntu1` therefore checks out application tag
-`v1.2.2`. Create the builder tag only after the matching application tag is public
-and the builder's Launchpad dry run succeeds.
+`debian/changelog`. The application source must declare the matching upstream
+version in `pyproject.toml`; builder tag `v1.2.3-1ubuntu1` therefore packages
+application version `1.2.3`. Create the builder tag only after the matching
+application release is public and the builder's Launchpad dry run succeeds.
 
 For a release:
 
@@ -157,7 +137,7 @@ For a release:
 2. Review the generated source-package artifact and confirm that all source,
    lint, bundle, frozen-module, GUI smoke, architecture, glibc, and hardening
    checks pass.
-3. Create and push the annotated builder tag using the full Debian version.
+3. Create and push the signed builder tag using the full Debian version.
 4. Run the same Launchpad workflow with `dry_run` disabled. Do not start another
    publication run until the queued workflow and Launchpad builds finish.
 
@@ -174,7 +154,7 @@ To remove builder-owned generated artifacts:
 
 The built package can be installed with the command below.
 ```bash
-sudo dpkg -i notolog_X.Y.Z_ARCH.deb
+sudo apt install ../notolog_X.Y.Z-REVISION_ARCH.deb
 ```
 
 *If the package was built on a local machine, the resulting `.deb` file is typically located in the parent directory (`..`) relative to where the `debian/` directory resides.*
@@ -257,18 +237,6 @@ For detailed output and to help debug any issues, use the `--info` flag:
 lintian -i notolog.deb
 # Or, for even more verbose output:
 lintian -iIv notolog.deb
-```
-
-Make sure to follow the guidelines in `debian/copyright`:
-```
-# Please also look if there are files or directories which have a
-# different copyright/license attached and list them here.
-# Please avoid picking licenses with terms that are more restrictive than the
-# packaged work, as it may make Debian's contributions unacceptable upstream.
-#
-# If you need, there are some extra license texts available in two places:
-#   /usr/share/debhelper/dh_make/licenses/
-#   /usr/share/common-licenses/
 ```
 
 ### Check PIE
@@ -403,34 +371,6 @@ The `--shortname-scheme new` flag ensures SPDX-style identifiers (e.g. mit, lgpl
 
 This is especially useful for auditing libraries bundled in `--onefile` PyInstaller builds.
 
-### Post-Build Inspection
-
-Optional but Recommended. Add this to CI or locally:
-```bash
-pyi-archive_viewer pyinstaller/dist/notolog | tee archive-contents.txt
-strings pyinstaller/dist/notolog | grep -iE 'key|token|user|secret|home|/Users|/home|__pycache__'
-```
-
-This confirms no credentials, user paths, or environment variables leaked into the binary (e.g., from `.env`, dev configs, etc.).
-
----
-
-For easier debugging and inspection, a temporary `--onedir` build can make bundled
-libraries directly visible. The release definition remains the audited one-file
-specification used by `build.sh`.
-
-## Metadata
-
-The upstream metadata file should be located at `debian/upstream/metadata`. If using an example (`metadata.ex`), make sure to rename it to just `metadata`.
-
-* See: https://wiki.debian.org/UpstreamMetadata for more information.
-
-Example:
-```yaml
-# User support or community link
-Support: https://github.com/notolog/notolog-editor/discussions
-```
-
 ## CI/CD workflows
 
 The build process is automated using GitHub Actions, and the resulting artifact is uploaded after the workflow completes.
@@ -452,6 +392,3 @@ All third-party dependencies are pulled by the main application during build and
 
 - `libgomp` and `libstdc++`: covered under the GPL with the [GCC Runtime Library Exception](https://www.gnu.org/licenses/gcc-exception-3.1.html), which permits linking from non-GPL software.
 - MIT-licensed internal `libggml` backends (`libggml.so`, `libggml-base.so`, and the selected `libggml-cpu-*.so` variant).
-
----
-_This README.md file has been carefully crafted and edited using the Notolog Editor itself._

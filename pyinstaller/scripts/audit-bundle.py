@@ -2,12 +2,29 @@
 # SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
-"""Fail a release build when its PyInstaller archive is unsafe or incompatible."""
+"""
+Notolog Editor - Debian Package Builder
+Build scripts and packaging for the Notolog Editor Debian release.
+
+File Details:
+- Purpose: Fail a release build when its PyInstaller archive is unsafe or incompatible.
+
+Repository: https://github.com/notolog/notolog-debian
+App Repository: https://github.com/notolog/notolog-editor
+Website: https://notolog.app
+
+Author: Vadim Bakhrenkov
+Copyright: 2025-2026 Vadim Bakhrenkov
+License: MIT License
+
+For detailed instructions and project information, please see the repository's README.md.
+"""
 
 from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import os
 import re
 import shutil
 import struct
@@ -30,6 +47,9 @@ ELF_MACHINES = {
 }
 
 FORBIDDEN_MEMBERS = (
+    re.compile(
+        r"Qt(?:6)?Multimedia|(^|/)(?:libavcodec|libavformat|libswresample|libportaudio)[^/]*$"
+    ),
     re.compile(r"(^|/)__pycache__(/|$)"),
     re.compile(r"\.(pyc|pyo)$"),
     re.compile(r"(^|/)direct_url\.json$"),
@@ -41,9 +61,13 @@ FORBIDDEN_MEMBERS = (
 PYTHON_SOURCE = re.compile(r"\.py$")
 RUNTIME_PYTHON_SOURCE = re.compile(
     r"^notolog/(?:lexemes/[a-z]{2}/[^/]+|"
-    r"modules/[^/]+/(?:module_core|lexemes/[a-z]{2}/[^/]+))\.py$"
+    r"modules/[^/]+/(?:module_core|lexemes/[a-z]{2}/[^/]+)|"
+    r"modules/text_to_speech/native_worker)\.py$"
 )
 REQUIRED_MEMBERS = {
+    "notolog/modules/text_to_speech/module_core.py",
+    "notolog/modules/text_to_speech/native_worker.py",
+    "notolog/modules/text_to_speech/lexemes/en/common.py",
     "README.md",
     "package_config.toml",
     "notolog/lexemes/en/common.py",
@@ -60,6 +84,12 @@ REQUIRED_MEMBERS = {
     "notolog/modules/openai_api/lexemes/en/settings_dialog.py",
 }
 REQUIRED_PYZ_MODULES = {
+    "sounddevice",
+    "_sounddevice",
+    "notolog.fenced_code_extension",
+    "notolog.modules.text_to_speech.audio_output",
+    "notolog.modules.text_to_speech.module_core",
+    "notolog.modules.text_to_speech.i18n",
     "notolog.modules.default.module_core",
     "notolog.modules.llama_cpp.module_core",
     "notolog.modules.ondevice_llm.module_core",
@@ -68,16 +98,20 @@ REQUIRED_PYZ_MODULES = {
 
 SENSITIVE_CONTENT = {
     "private key": re.compile(
-        rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+        rb"-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----\r?\n"
+        rb"[A-Za-z0-9+/=\r\n]{100,}"
+        rb"-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
     ),
     "AWS access key": re.compile(rb"AKIA[0-9A-Z]{16}"),
-    "GitHub token": re.compile(rb"gh[pousr]_[A-Za-z0-9_]{20,}"),
-    "developer path": re.compile(
-        rb"(?i)(?:/home/[^/\x00]+/(?:workspace|projects|pycharmprojects)/"
-        rb"|/Users/[^/\x00]+/(?:workspace|projects)/"
-        rb"|[A-Z]:\\Users\\[^\\\x00]+\\)"
+    "GitHub token": re.compile(
+        rb"(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})"
     ),
+    "OpenAI API key": re.compile(rb"\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,}\b"),
 }
+
+USER_HOME_PATH = re.compile(
+    rb"(?i)(?:/(?:home|Users)/[^/\x00]+/|[A-Z]:\\Users\\[^\\\x00]+\\)"
+)
 
 GLIBC_PATTERN = re.compile(r"GLIBC_(\d+)\.(\d+)")
 COPYRIGHT_DISTRIBUTION = re.compile(
@@ -100,12 +134,16 @@ def required_glibc(readelf: str, data: bytes) -> tuple[int, int]:
     with tempfile.NamedTemporaryFile() as file:
         file.write(data)
         file.flush()
-        result = subprocess.run(
-            [readelf, "--wide", "--version-info", file.name],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        return required_glibc_file(readelf, Path(file.name))
+
+
+def required_glibc_file(readelf: str, path: Path) -> tuple[int, int]:
+    result = subprocess.run(
+        [readelf, "--wide", "--version-info", str(path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
     if result.returncode != 0:
         raise RuntimeError(f"readelf failed: {result.stderr.strip()}")
     versions = [
@@ -136,6 +174,13 @@ def main() -> int:
     )
     parser.add_argument("--copyright", required=True, type=Path)
     parser.add_argument("--glibc-output", required=True, type=Path)
+    parser.add_argument(
+        "--forbidden-build-root",
+        action="append",
+        default=[],
+        type=Path,
+        help="absolute build path that must not appear in the executable",
+    )
     args = parser.parse_args()
 
     readelf = shutil.which("readelf")
@@ -144,13 +189,30 @@ def main() -> int:
 
     archive = CArchiveReader(str(args.binary))
     failures: list[str] = []
+    forbidden_build_roots: list[bytes] = []
+    for path in args.forbidden_build_root:
+        for candidate in (path.absolute(), path.resolve()):
+            if candidate == Path(candidate.anchor):
+                parser.error("a filesystem root cannot be a forbidden build root")
+            encoded = os.fsencode(candidate)
+            if encoded not in forbidden_build_roots:
+                forbidden_build_roots.append(encoded)
     members: set[str] = set()
     pyz_modules: set[str] = set()
     package_config_data: bytes | None = None
     bundled_imports: set[str] = set()
-    max_glibc = (0, 0)
-    with args.binary.open("rb") as binary:
-        main_machine = elf_machine(binary.read(64))
+    # The launcher is linked separately from the bundled libraries. Include
+    # its requirements in both the compatibility gate and Debian dependency.
+    max_glibc = required_glibc_file(readelf, args.binary)
+    binary_data = args.binary.read_bytes()
+    main_machine = elf_machine(binary_data[:64])
+
+    for label, pattern in SENSITIVE_CONTENT.items():
+        if pattern.search(binary_data):
+            failures.append(f"{label} found in main executable")
+    for build_root in forbidden_build_roots:
+        if build_root in binary_data:
+            failures.append("build path found in main executable")
 
     expected_machine = ELF_MACHINES[args.expected_architecture]
     if main_machine is None:
@@ -178,6 +240,10 @@ def main() -> int:
         if PYTHON_SOURCE.search(name) and not RUNTIME_PYTHON_SOURCE.fullmatch(name):
             failures.append(f"forbidden Python source member: {name}")
 
+        for label, pattern in SENSITIVE_CONTENT.items():
+            if pattern.search(data):
+                failures.append(f"{label} found in archive member: {name}")
+
         module_name = name.partition(":")[2] if typecode == "module" else ""
         project_member = (
             name.startswith(("notolog/", "notolog-"))
@@ -185,10 +251,11 @@ def main() -> int:
             or module_name == "notolog"
             or module_name.startswith("notolog.")
         )
-        if project_member:
-            for label, pattern in SENSITIVE_CONTENT.items():
-                if pattern.search(data):
-                    failures.append(f"{label} found in archive member: {name}")
+        if project_member and USER_HOME_PATH.search(data):
+            failures.append(f"user home path found in archive member: {name}")
+        for build_root in forbidden_build_roots:
+            if build_root in data:
+                failures.append(f"build path found in archive member: {name}")
 
         if typecode != "b":
             continue

@@ -27,6 +27,8 @@ pyinstaller_path = os.path.dirname(sys.argv[0])
 app_root = os.path.abspath(os.path.join(pyinstaller_path, '..', 'src'))
 version_file_path = os.path.abspath(os.path.join(pyinstaller_path, 'version.txt'))
 icon_file = os.path.join(app_root, 'notolog/assets/notolog-logo.png')
+# Collect application assets and module catalogs from the selected release checkout.
+sys.path.insert(0, app_root)
 
 # Data and binary collection. Python modules belong in PyInstaller's PYZ
 # archive; only runtime assets should be copied as plain files.
@@ -44,12 +46,14 @@ datas += collect_data_files(
     include_py_files=True,
     includes=[
         'modules/*/module_core.py',
+        'modules/text_to_speech/native_worker.py',
         'modules/*/lexemes/*/*.py',
     ],
 )
 datas.append((os.path.join(app_root, 'README.md'), '.'))
 binaries = []
 hiddenimports = collect_submodules('notolog')
+hiddenimports += ['sounddevice', '_sounddevice', '_cffi_backend']
 
 # Include version.txt in the PyInstaller bundle (placed at app root)
 datas.append((version_file_path, '.'))
@@ -99,6 +103,8 @@ datas.append((package_config_file_path, '.'))
 
 # Exclude test modules if a dependency imports them conditionally.
 excludes = [
+    'PySide6.QtMultimedia',
+    'PySide6.QtMultimediaWidgets',
     'tests',
     'test',
     'pytest',

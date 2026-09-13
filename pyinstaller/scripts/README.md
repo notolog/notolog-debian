@@ -1,4 +1,3 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-04-01 00:00:00.000000"}} -->
 # 🧪 Supporting Scripts
 
 Located in the `scripts` directory, these tools assist with metadata and packaging:

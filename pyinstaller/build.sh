@@ -8,12 +8,12 @@ set -Eeuo pipefail
 readonly PYINSTALLER_VERSION="6.22.2"
 readonly PIP_VERSION="26.2.1"
 readonly POETRY_CORE_VERSION="2.4.1"
-readonly BUILD_VERSION="1.6.0"
+readonly BUILD_VERSION="1.6.1"
 readonly PIP_LICENSES_VERSION="5.5.5"
 readonly PIP_AUDIT_VERSION="2.10.1"
 readonly LLAMA_CPP_PYTHON_VERSION="0.3.35"
-# llama-cpp-python imports diskcache, but Notolog never enables its pickle-based
-# LlamaDiskCache. There is no fixed diskcache release as of this build.
+# Narrow exception for a transitive dependency that the application does not use.
+# The source guard below prevents the exception from covering future API use.
 readonly DISKCACHE_UNUSED_ADVISORY="PYSEC-2026-2447"
 LLAMA_CPU_PROFILE="${LLAMA_CPU_PROFILE:-auto}"
 readonly LLAMA_X86_BASE_CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_SSE42=OFF -DGGML_AVX=OFF -DGGML_AVX2=OFF -DGGML_BMI2=OFF -DGGML_FMA=OFF"
@@ -145,7 +145,8 @@ fi
 CMAKE_ARGS="$LLAMA_CMAKE_ARGS" \
     CMAKE_BUILD_PARALLEL_LEVEL="$LLAMA_BUILD_JOBS" \
     "$VENV_PYTHON" -m pip install --no-cache-dir --no-binary=llama-cpp-python \
-    "${SOURCE_DIR}[llama]" \
+    --only-binary=sounddevice,cffi,pycparser,PySide6-Essentials,shiboken6 \
+    "${SOURCE_DIR}[llama,tts]" \
     "llama-cpp-python==$LLAMA_CPP_PYTHON_VERSION"
 
 RESOLVED_LLAMA_CPP_VERSION="$(
@@ -170,6 +171,15 @@ fi
 "$VENV_PYTHON" -m pip check
 "$VENV_PYTHON" "$SCRIPTS_DIR/verify-modules.py"
 
+# The advisory exception is valid only while Notolog does not use diskcache or
+# llama-cpp-python's pickle-based LlamaDiskCache implementation.
+if grep -R -n --include='*.py' -E \
+        '(^|[^[:alnum:]_])(diskcache|LlamaDiskCache)([^[:alnum:]_]|$)' \
+        "$SOURCE_DIR/notolog"; then
+    echo "Error: diskcache use invalidates security advisory exception $DISKCACHE_UNUSED_ADVISORY" >&2
+    exit 1
+fi
+
 mkdir -p "$BUILD_DIR/reports"
 "$VENV_PYTHON" --version > "$BUILD_DIR/python_version.txt"
 "$VENV_PYTHON" -m PyInstaller --version > "$BUILD_DIR/pyinstaller_version.txt"
@@ -177,11 +187,17 @@ mkdir -p "$BUILD_DIR/reports"
 printf '%s\n' "$APP_VERSION" > "$BUILD_DIR/app_version.txt"
 printf '%s\n' "$LLAMA_CPU_PROFILE" > "$BUILD_DIR/llama_cpu_profile.txt"
 printf '%s\n' "$LLAMA_CMAKE_ARGS" > "$BUILD_DIR/llama_cmake_args.txt"
-"$VENV_PYTHON" -m pip freeze > "$BUILD_DIR/build_requirements_ver${APP_VERSION}.txt"
+"$VENV_PYTHON" -m pip list --format=freeze > "$BUILD_DIR/reports/build-requirements.txt"
 cp "$SOURCE_DIR/pyproject.toml" "$BUILD_DIR/pyproject.toml"
 "$VENV_DIR/bin/pip-licenses" --format=markdown --with-license-file --with-authors \
     > "$BUILD_DIR/reports/pip-licenses.md"
-"$VENV_DIR/bin/pip-audit" --ignore-vuln "$DISKCACHE_UNUSED_ADVISORY"
+"$VENV_DIR/bin/pip-licenses" --format=markdown --with-authors \
+    > "$BUILD_DIR/reports/dependency-licenses.md"
+# All other dependency advisories fail the build.
+"$VENV_DIR/bin/pip-audit" \
+    --ignore-vuln "$DISKCACHE_UNUSED_ADVISORY" \
+    --format cyclonedx-json \
+    --output "$BUILD_DIR/reports/notolog-${APP_VERSION}.cdx.json"
 
 cd "$PYI_DIR"
 NOTOLOG_LLAMA_CPU_PROFILE="$LLAMA_CPU_PROFILE" \
@@ -191,6 +207,7 @@ NOTOLOG_LLAMA_CPU_PROFILE="$LLAMA_CPU_PROFILE" \
     "$PYI_DIR/dist/notolog" \
     --target-series "$TARGET_SERIES" \
     --expected-architecture "$TARGET_ARCHITECTURE" \
+    --forbidden-build-root "$PROJECT_ROOT" \
     --copyright "$PROJECT_ROOT/debian/copyright" \
     --glibc-output "$PYI_DIR/embedded-glibc-version.txt"
 
@@ -199,12 +216,15 @@ env \
     QT_QPA_PLATFORM=offscreen \
     "$PYI_DIR/dist/notolog"
 
+"$VENV_PYTHON" "$SCRIPTS_DIR/verify-speech-worker.py" "$PYI_DIR/dist/notolog"
+"$VENV_PYTHON" "$SCRIPTS_DIR/verify-version.py" "$PYI_DIR/dist/notolog" "$APP_VERSION"
+
 # A GUI smoke test must remain alive after constructing the main window.
 SMOKE_CONFIG_DIR="$BUILD_DIR/smoke-config"
 SMOKE_DATA_DIR="$BUILD_DIR/smoke-data"
 mkdir -p "$SMOKE_CONFIG_DIR" "$SMOKE_DATA_DIR"
 smoke_status=0
-timeout --signal=TERM 5s env \
+timeout --signal=TERM 15s env \
     XDG_CONFIG_HOME="$SMOKE_CONFIG_DIR" \
     XDG_DATA_HOME="$SMOKE_DATA_DIR" \
     QT_QPA_PLATFORM=offscreen \
@@ -273,9 +293,12 @@ else
         "$PACKAGED_BINARY" \
         --target-series "$TARGET_SERIES" \
         --expected-architecture "$TARGET_ARCHITECTURE" \
+        --forbidden-build-root "$PROJECT_ROOT" \
         --copyright "$PROJECT_ROOT/debian/copyright" \
         --glibc-output "$PYI_DIR/embedded-glibc-version.txt"
     check_hardening "$PACKAGED_BINARY"
+    "$VENV_PYTHON" "$SCRIPTS_DIR/verify-speech-worker.py" "$PACKAGED_BINARY"
+    "$VENV_PYTHON" "$SCRIPTS_DIR/verify-version.py" "$PACKAGED_BINARY" "$APP_VERSION"
 
     env \
         NOTOLOG_VERIFY_FROZEN_MODULES=1 \
@@ -283,7 +306,7 @@ else
         "$PACKAGED_BINARY"
 
     package_smoke_status=0
-    timeout --signal=TERM 5s env \
+    timeout --signal=TERM 15s env \
         XDG_CONFIG_HOME="$PACKAGE_CONFIG_DIR" \
         XDG_DATA_HOME="$PACKAGE_DATA_DIR" \
         QT_QPA_PLATFORM=offscreen \

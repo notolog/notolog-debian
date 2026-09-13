@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Application tag (e.g., v1.2.2). Leave empty for latest release."
+        description: "Application tag (e.g., v1.2.3). Leave empty for latest release."
         required: false
         default: ""
       ubuntu_series:
@@ -69,6 +69,7 @@ concurrency:
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
   APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
+  APP_RELEASE_COMMIT: "35ccbe846cb09777556201bc308a20ab7890e943"
   PACKAGE_NAME: "notolog-editor"
 
 jobs:
@@ -76,13 +77,6 @@ jobs:
     # Build on the oldest supported Ubuntu to preserve glibc compatibility.
     runs-on: ubuntu-22.04
     steps:
-      - name: Get system info
-        run: |
-          PLATFORM_ARCH=$(uname -m)
-          echo "$PLATFORM_ARCH"
-          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> "$GITHUB_ENV"
-          uname -a
-
       - name: Install jq for JSON parsing
         run: |
           sudo apt-get update
@@ -124,8 +118,7 @@ jobs:
         with:
           repository: ${{ env.APP_GIT_REPOSITORY }}
           path: src
-          fetch-tags: true
-          ref: refs/tags/${{ env.PACKAGE_VERSION }}
+          ref: ${{ env.APP_RELEASE_COMMIT }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -136,6 +129,14 @@ jobs:
             ''|*[!0-9]*) echo "Invalid application commit timestamp" >&2; exit 1 ;;
           esac
           echo "SOURCE_DATE_EPOCH=$BUILD_EPOCH" >> "$GITHUB_ENV"
+
+      - name: Verify application release commit
+        run: |
+          ACTUAL_COMMIT=$(git -C src rev-parse HEAD)
+          if [ "$ACTUAL_COMMIT" != "$APP_RELEASE_COMMIT" ]; then
+            echo "Application release commit does not match the approved v1.2.3 source" >&2
+            exit 1
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -151,18 +152,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian dput xxd libegl1
-          # Optional: install all declared build dependencies from debian/control
-
-      - name: Print working directory
-        run: pwd
-
-      - name: Show package version
-        run: |
-          echo "Building version: ${{ env.PACKAGE_VERSION }}"
-          echo "Repository: ${{ env.APP_GIT_REPOSITORY }}"
-          echo "Ubuntu series: ${{ github.event.inputs.ubuntu_series }}"
-          echo "Dry run: ${{ github.event.inputs.dry_run }}"
+          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian dput xxd libegl1 libportaudio2
 
       - name: Build PyInstaller binary with PIE hardening
         env:
@@ -207,6 +197,7 @@ jobs:
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           # Create GPG home directory
           mkdir -p ~/.gnupg
@@ -244,7 +235,7 @@ jobs:
           echo "Caching passphrase for signing..."
           HEX_PASSPHRASE=$(echo -n "$GPG_PASSPHRASE" | xxd -p -c 256 | tr -d '\n' | tr 'a-f' 'A-F')
 
-          gpg --list-secret-keys --with-colons --with-keygrip "${{ secrets.GPG_KEY_ID }}" | \
+          gpg --list-secret-keys --with-colons --with-keygrip "$GPG_KEY_ID" | \
             grep "^grp:" | cut -d: -f10 | while read -r GRIP; do
               if [ -n "$GRIP" ]; then
                 echo "PRESET_PASSPHRASE $GRIP -1 $HEX_PASSPHRASE" | gpg-connect-agent > /dev/null 2>&1 && \
@@ -255,13 +246,13 @@ jobs:
           # Verify signing works
           echo "Testing GPG signing..."
           if echo "test" | gpg --batch --yes --pinentry-mode loopback \
-            --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign > /dev/null 2>&1; then
+            --default-key "$GPG_KEY_ID" --clearsign > /dev/null 2>&1; then
             echo "✅ GPG signing test passed"
           else
             echo "⚠️ Signing test failed, trying with passphrase..."
             echo "test" | gpg --batch --yes --pinentry-mode loopback \
               --passphrase-fd 3 \
-              --default-key "${{ secrets.GPG_KEY_ID }}" --clearsign \
+              --default-key "$GPG_KEY_ID" --clearsign \
               3<<< "$GPG_PASSPHRASE" > /dev/null 2>&1
             echo "✅ GPG signing test passed (with passphrase)"
           fi
@@ -269,7 +260,7 @@ jobs:
           # Show key info (public only)
           echo ""
           echo "Imported key:"
-          gpg --list-keys "${{ secrets.GPG_KEY_ID }}" 2>/dev/null | head -5
+          gpg --list-keys "$GPG_KEY_ID" 2>/dev/null | head -5
 
       - name: Select Ubuntu series
         env:
@@ -298,21 +289,19 @@ jobs:
           PACKAGE_STAGING_DIR=$(mktemp -d "$RUNNER_TEMP/notolog-source-package.XXXXXX")
           cp debian/changelog "$BASE_CHANGELOG"
           cp debian/control "$BASE_CONTROL"
-          restore_packaging_files() {
-            cp "$BASE_CHANGELOG" debian/changelog
-            cp "$BASE_CONTROL" debian/control
-          }
-          trap restore_packaging_files EXIT
 
           # A non-native package needs a pristine upstream archive. Keep the
           # architecture-matched executable, but exclude local/CI build state.
           UPSTREAM_VERSION=$(dpkg-parsechangelog --show-field Version | cut -d- -f1)
+          ORIG_TARBALL="$RUNNER_TEMP/notolog_${UPSTREAM_VERSION}.orig.tar.xz"
+          SOURCE_BUILD_DIR=$(mktemp -d "$RUNNER_TEMP/notolog-source-build.XXXXXX")
           tar --sort=name \
             --mtime="@${SOURCE_DATE_EPOCH}" \
             --owner=0 --group=0 --numeric-owner \
             --pax-option=delete=atime,delete=ctime \
-            --create --xz --file="../notolog_${UPSTREAM_VERSION}.orig.tar.xz" \
+            --create --xz --file="$ORIG_TARBALL" \
             --exclude-vcs \
+            --exclude='./.github' \
             --exclude='./build' \
             --exclude='./debian' \
             --exclude='./node_modules' \
@@ -320,9 +309,18 @@ jobs:
             --exclude='./pyinstaller/pyi-source' \
             --exclude='./source-package' \
             --exclude='./venv' \
+            --exclude='./.venv' \
             --exclude='__pycache__' \
             --exclude='*.pyc' \
             .
+
+          tar --extract --xz --file="$ORIG_TARBALL" --directory="$SOURCE_BUILD_DIR"
+          cp -a debian "$SOURCE_BUILD_DIR/debian"
+          if find "$SOURCE_BUILD_DIR" -type d \
+            \( -name venv -o -name .venv \) -print -quit | grep -q .; then
+            echo "Virtual environment found in source package staging tree" >&2
+            exit 1
+          fi
 
           : > "$PACKAGE_STAGING_DIR/versions.txt"
 
@@ -331,9 +329,10 @@ jobs:
           esac
 
           for SERIES in $TARGET_SERIES_LIST; do
-            cp "$BASE_CHANGELOG" debian/changelog
-            cp "$BASE_CONTROL" debian/control
-            sed -i 's/^Architecture: amd64 arm64$/Architecture: amd64/' debian/control
+            cp "$BASE_CHANGELOG" "$SOURCE_BUILD_DIR/debian/changelog"
+            cp "$BASE_CONTROL" "$SOURCE_BUILD_DIR/debian/control"
+            sed -i 's/^Architecture: amd64 arm64$/Architecture: amd64/' \
+              "$SOURCE_BUILD_DIR/debian/control"
 
             case "$SERIES" in
               jammy) SERIES_VERSION="22.04" ;;
@@ -341,30 +340,38 @@ jobs:
               resolute) SERIES_VERSION="26.04" ;;
               *) echo "Unsupported Ubuntu series: $SERIES" >&2; exit 1 ;;
             esac
-            BASE_VERSION=$(dpkg-parsechangelog --show-field Version)
+            BASE_VERSION=$(dpkg-parsechangelog \
+              --file "$SOURCE_BUILD_DIR/debian/changelog" --show-field Version)
             FULL_VERSION="${BASE_VERSION}~ppa${PPA_REVISION}~ubuntu${SERIES_VERSION}.1"
-            sed -i "1s/${BASE_VERSION}/${FULL_VERSION}/" debian/changelog
-            sed -i "1s/) [^;]*;/) ${SERIES};/" debian/changelog
+            sed -i "1s/${BASE_VERSION}/${FULL_VERSION}/" \
+              "$SOURCE_BUILD_DIR/debian/changelog"
+            sed -i "1s/) [^;]*;/) ${SERIES};/" \
+              "$SOURCE_BUILD_DIR/debian/changelog"
             echo "Building source package $FULL_VERSION for $SERIES"
 
             if [ "$DRY_RUN" = "true" ]; then
-              dpkg-buildpackage -S -sa -us -uc
+              (cd "$SOURCE_BUILD_DIR" && dpkg-buildpackage -S -sa -us -uc)
             else
-              dpkg-buildpackage -S -sa -k"${{ secrets.GPG_KEY_ID }}"
-              gpg --verify "../notolog_${FULL_VERSION}.dsc"
-              gpg --verify "../notolog_${FULL_VERSION}_source.changes"
+              (cd "$SOURCE_BUILD_DIR" && \
+                dpkg-buildpackage -S -sa -k"$DEBSIGN_KEYID")
+              gpg --verify "$RUNNER_TEMP/notolog_${FULL_VERSION}.dsc"
+              gpg --verify "$RUNNER_TEMP/notolog_${FULL_VERSION}_source.changes"
             fi
 
             printf '%s=%s\n' "$SERIES" "$FULL_VERSION" >> "$PACKAGE_STAGING_DIR/versions.txt"
-            cp "../notolog_${FULL_VERSION}.debian.tar.xz" "$PACKAGE_STAGING_DIR/"
-            cp "../notolog_${FULL_VERSION}.dsc" "$PACKAGE_STAGING_DIR/"
-            cp "../notolog_${FULL_VERSION}_source.changes" "$PACKAGE_STAGING_DIR/"
-            cp "../notolog_${FULL_VERSION}_source.buildinfo" "$PACKAGE_STAGING_DIR/"
+            cp "$RUNNER_TEMP/notolog_${FULL_VERSION}.debian.tar.xz" "$PACKAGE_STAGING_DIR/"
+            cp "$RUNNER_TEMP/notolog_${FULL_VERSION}.dsc" "$PACKAGE_STAGING_DIR/"
+            cp "$RUNNER_TEMP/notolog_${FULL_VERSION}_source.changes" "$PACKAGE_STAGING_DIR/"
+            cp "$RUNNER_TEMP/notolog_${FULL_VERSION}_source.buildinfo" "$PACKAGE_STAGING_DIR/"
           done
 
-          cp "../notolog_${UPSTREAM_VERSION}.orig.tar.xz" "$PACKAGE_STAGING_DIR/"
+          cp "$ORIG_TARBALL" "$PACKAGE_STAGING_DIR/"
           mkdir source-package
           cp "$PACKAGE_STAGING_DIR"/* source-package/
+          mkdir source-package/build-evidence
+          cp pyinstaller/build/reports/build-requirements.txt source-package/build-evidence/
+          cp pyinstaller/build/reports/dependency-licenses.md source-package/build-evidence/
+          cp "pyinstaller/build/reports/notolog-${UPSTREAM_VERSION}.cdx.json" source-package/build-evidence/
           echo "Source package files created:"
           ls -lh source-package/
 
@@ -412,14 +419,13 @@ jobs:
           login = anonymous
           allow_unsigned_uploads = 0
           EOF
-          echo "dput configuration:"
-          cat ~/.dput.cf
-          echo ""
-          echo "📋 PPA path: ~$LP_USERNAME/$PPA_NAME/ubuntu/"
-          echo "   Verify this matches your Launchpad PPA URL"
+          echo "dput configuration created"
 
       - name: Upload to PPA
         if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          LP_USERNAME: ${{ secrets.LP_USERNAME }}
+          PPA_NAME: ${{ github.event.inputs.ppa_name }}
         run: |
           while IFS='=' read -r SERIES FULL_VERSION; do
             echo "Uploading $FULL_VERSION to $SERIES..."
@@ -428,10 +434,7 @@ jobs:
           echo ""
           echo "✅ Upload complete!"
           echo ""
-          echo "📋 Next steps:"
-          echo "1. Check email for Launchpad acceptance/rejection notice"
-          echo "2. Monitor build status at:"
-          echo "   https://launchpad.net/~${{ secrets.LP_USERNAME }}/+archive/ubuntu/${{ github.event.inputs.ppa_name }}/+packages"
+          echo "Check Launchpad for the acceptance status and published builds."
 
       - name: Skip upload (dry run)
         if: ${{ github.event.inputs.dry_run == 'true' }}

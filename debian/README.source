@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+Notolog source-package layout
+=============================
+
+This is a binary-repack source package. It retains the upstream source under
+src/ and includes the architecture-specific PyInstaller executable at
+pyinstaller/dist/notolog. debian/rules validates and installs that executable;
+the executable is not rebuilt by the Debian package build.
+
+Preparing and rebuilding
+------------------------
+
+On an Ubuntu 22.04 amd64 build host, install the packages listed in
+debian/control plus Python 3.14, zlib1g-dev, libegl1, libportaudio2, devscripts,
+and lintian. From a clean builder checkout, populate src/ from the upstream
+release matching debian/changelog:
+
+    git clone --depth 1 --branch v1.2.3 \
+        https://github.com/notolog/notolog-editor.git src
+    TARGET_SERIES_OVERRIDE=jammy ./pyinstaller/build.sh
+
+The script builds and audits the executable, creates the binary package, and
+runs frozen-module and headless smoke tests. To create an unsigned source
+package afterward, run:
+
+    dpkg-buildpackage -S -sa -us -uc
+
+Modifying or discarding changes
+-------------------------------
+
+Make executable changes in src/ or the PyInstaller configuration, then rerun
+the commands above. Do not edit pyinstaller/dist/notolog directly. No Debian
+patch series is applied. To discard source-package changes, extract the .dsc
+again into a new directory with `dpkg-source -x`.
+
+For a new upstream version, update debian/changelog and release metadata,
+replace src/ with the matching upstream release, rebuild the executable, and
+regenerate the source package.

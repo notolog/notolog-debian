@@ -1,7 +1,23 @@
 # SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
-"""Verify that every bundled AI backend is importable before freezing."""
+"""
+Notolog Editor - Debian Package Builder
+Build scripts and packaging for the Notolog Editor Debian release.
+
+File Details:
+- Purpose: Verify that every bundled AI backend is importable before freezing.
+
+Repository: https://github.com/notolog/notolog-debian
+App Repository: https://github.com/notolog/notolog-editor
+Website: https://notolog.app
+
+Author: Vadim Bakhrenkov
+Copyright: 2025-2026 Vadim Bakhrenkov
+License: MIT License
+
+For detailed instructions and project information, please see the repository's README.md.
+"""
 
 import ctypes
 import os
@@ -12,7 +28,7 @@ import llama_cpp
 from notolog.modules.modules import Modules
 from llama_cpp import llama_backend_free, llama_backend_init
 
-EXPECTED_AI_MODULES = {"llama_cpp", "ondevice_llm", "openai_api"}
+EXPECTED_AI_MODULES = {"llama_cpp", "ondevice_llm", "openai_api", "text_to_speech"}
 
 
 def load_runtime_cpu_backend():
@@ -42,6 +58,9 @@ def main() -> int:
         print(f"AI module discovery failed: {names}")
         return 1
 
+    import sounddevice
+
+    sounddevice.get_portaudio_version()
     llama_backend_init()
     load_runtime_cpu_backend()
     llama_backend_free()

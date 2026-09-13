@@ -28,7 +28,7 @@ This package includes components licensed under:
 - MIT
 - BSD-2-Clause, BSD-3-Clause
 - Apache-2.0, Apache-2.0 WITH LLVM-exception
-- LGPL-3.0-or-later
+- LGPL-2.1-or-later, LGPL-3.0-only, LGPL-3.0-or-later
 - GPL-3.0-with-GCC-exception
 - OFL-1.1
 - Python Software Foundation License
@@ -63,3 +63,11 @@ To report packaging issues, visit:
 For application bugs or feature requests:
 
     https://github.com/notolog/notolog-editor/issues
+
+Text-to-Speech
+--------------
+
+PCM audio playback uses the system PortAudio library. Install the speech runtime and models
+through Text-to-Speech settings; neither is included in this package. Downloads
+belong to the user's data directory and do not require administrator privileges.
+The speech worker keeps document text and generated audio in memory.

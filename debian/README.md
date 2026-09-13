@@ -1,4 +1,3 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-02-07 00:00:00.000000"}} -->
 # Build Debian Package
 
 This document provides instructions to build and maintain the Debian package for Notolog Editor.
@@ -7,7 +6,7 @@ This document provides instructions to build and maintain the Debian package for
 
 Install the required system build dependencies:
 ```bash
-sudo apt-get install build-essential devscripts debhelper lintian zlib1g-dev
+sudo apt-get install build-essential devscripts debhelper lintian zlib1g-dev libegl1 libportaudio2
 ```
 
 Python 3.14 is required to create the standalone executable. Python build
@@ -36,7 +35,7 @@ To remove only artifacts owned by this builder:
 To install the generated package:
 ```bash
 # Standard installation if the package is in the parent directory
-sudo apt install ../notolog_X.Y.Z_ARCH.deb
+sudo apt install ../notolog_X.Y.Z-REVISION_ARCH.deb
 ```
 
 To uninstall:

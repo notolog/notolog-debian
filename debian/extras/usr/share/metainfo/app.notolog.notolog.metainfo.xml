@@ -34,6 +34,11 @@
   <update_contact>dev@notolog.app</update_contact>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.2.3" date="2026-09-07">
+      <description>
+        <p>Local text-to-speech, safer frozen-package validation, and release hardening.</p>
+      </description>
+    </release>
     <release version="1.2.2" date="2026-08-30">
       <description>
         <p>Packaging portability and first-launch settings isolation improvements.</p>

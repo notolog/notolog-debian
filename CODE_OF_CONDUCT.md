@@ -1,4 +1,3 @@
-<!-- {"notolog.app": {"created": "2025-04-01 00:00:00.000000", "updated": "2025-04-01 00:00:00.000000"}} -->
 # Contributor Covenant Code of Conduct
 
 ## Our Pledge

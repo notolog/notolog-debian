@@ -1,3 +1,22 @@
+notolog (1.2.3-1ubuntu1) resolute; urgency=medium
+
+  * Update Notolog Editor to version 1.2.3.
+  * Include PortAudio playback and the native speech worker entry point.
+  * Validate Text-to-Speech modules and translations in frozen packages.
+  * Declare audio and model-download dependencies.
+  * Include audio dependency attribution and correct the LGPL license reference.
+  * Verify the executable version before and after Debian package processing.
+  * Preserve architecture, glibc, hardening and isolated PPA staging checks.
+  * Audit frozen bundles for credentials, private keys and build-system paths.
+  * Pin the reviewed upstream source commit used by release automation.
+  * Harden release workflows and publish dependency, licence and CycloneDX
+    build evidence with GitHub package artifacts.
+  * Document the binary-repack source layout.
+  * Update the Python build frontend to version 1.6.1.
+  * Correct the AppStream release date and remove obsolete public build notes.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Sun, 13 Sep 2026 17:17:30 +0100
+
 notolog (1.2.2-1ubuntu1) resolute; urgency=medium
 
   * Update Notolog Editor to version 1.2.2.

@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Version override (e.g., v1.2.2). Leave empty for latest release."
+        description: "Version override (e.g., v1.2.3). Leave empty for latest release."
         required: false
         default: ""
   push:
@@ -30,6 +30,7 @@ concurrency:
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
   APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
+  APP_RELEASE_COMMIT: "35ccbe846cb09777556201bc308a20ab7890e943"
   PACKAGE_NAME: "notolog-editor"
 
 jobs:
@@ -47,13 +48,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - name: Get system info
-        run: |
-          PLATFORM_ARCH=$(uname -m)
-          echo "$PLATFORM_ARCH"
-          echo "PLATFORM_ARCH=$PLATFORM_ARCH" >> "$GITHUB_ENV"
-          uname -a
-
       - name: Install release metadata tools
         run: |
           sudo apt-get update
@@ -95,15 +89,22 @@ jobs:
         with:
           repository: ${{ env.APP_GIT_REPOSITORY }}
           path: src
-          fetch-tags: true
-          ref: refs/tags/${{ env.UPSTREAM_VERSION }}
-          fetch-depth: 1 # Shallow clone (no .git history)
+          ref: ${{ env.APP_RELEASE_COMMIT }}
+          fetch-depth: 1 # Fetch only the pinned commit.
           persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
+
+      - name: Verify application release commit
+        run: |
+          ACTUAL_COMMIT=$(git -C src rev-parse HEAD)
+          if [ "$ACTUAL_COMMIT" != "$APP_RELEASE_COMMIT" ]; then
+            echo "Application release commit does not match the approved v1.2.3 source" >&2
+            exit 1
+          fi
 
       - name: Install Python dependencies
         run: |
@@ -114,7 +115,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian libegl1
+          sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian libegl1 libportaudio2
 
       - name: Validate builder release tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -126,14 +127,6 @@ jobs:
             echo "Builder tag $BUILDER_TAG does not match Debian version $DEBIAN_VERSION" >&2
             exit 1
           fi
-
-      - name: Print working directory
-        run: pwd
-
-      - name: Show package version
-        run: |
-          echo "Building version: ${{ env.PACKAGE_VERSION }}"
-          echo "Repository: ${{ env.APP_GIT_REPOSITORY }}"
 
       - name: Build Debian package
         env:
@@ -147,9 +140,6 @@ jobs:
           # Run the main build script
           ./build.sh
 
-          # Clean up PyInstaller build artifacts
-          ./clean-build.sh
-
       - name: Check SPDX compliance on source tree
         run: |
           reuse download --all
@@ -157,9 +147,7 @@ jobs:
 
       - name: Copy .deb, .buildinfo, and .changes files
         run: |
-          # Move to the workspace parent directory
           cd ..
-          echo "Working from: $(pwd)"
 
           DEST="${{ github.workspace }}/build/debian"
           rm -rf "$DEST"
@@ -189,8 +177,13 @@ jobs:
 
           lintian --fail-on error "$DEST/${PACKAGES[0]}"
           dpkg-deb --info "$DEST/${PACKAGES[0]}"
+          cp "${{ github.workspace }}/pyinstaller/build/reports/build-requirements.txt" "$DEST/"
+          cp "${{ github.workspace }}/pyinstaller/build/reports/dependency-licenses.md" "$DEST/"
+          cp "${{ github.workspace }}/pyinstaller/build/reports/notolog-${UPSTREAM_VERSION#v}.cdx.json" "$DEST/"
           echo "📦 Final artifact contents:"
           ls -lh "$DEST"
+
+          "${{ github.workspace }}/pyinstaller/clean-build.sh"
 
       - name: Validate changelog
         run: dpkg-parsechangelog

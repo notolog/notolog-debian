@@ -1,4 +1,3 @@
-<!-- {"notolog.app": {"created": "2026-02-07 00:00:00.000000", "updated": "2026-02-07 00:00:00.000000"}} -->
 # Security Policy
 
 This document covers security for the **Debian package builder** repository.
@@ -39,6 +38,11 @@ Report security vulnerabilities by:
 
 ## Build Security
 
+### Dependency Auditing
+
+Release builds audit Python dependencies and fail on unreviewed findings.
+Temporary exceptions must be narrowly scoped and enforced by build-time checks.
+
 ### GPG Signing
 
 All packages uploaded to Launchpad PPA are GPG signed:
@@ -62,4 +66,4 @@ We thank all security researchers who responsibly disclose vulnerabilities.
 
 ---
 
-*Last updated: February 2026*
+*Last updated: September 2026*

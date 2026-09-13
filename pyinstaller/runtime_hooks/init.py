@@ -22,13 +22,13 @@ SPDX-License-Identifier: MIT
 For detailed instructions and project information, please refer to the repository's README.md.
 """
 
+import sys
+import runpy
+from pathlib import Path
+
 import ctypes
 import logging
 import os
-from pathlib import Path
-
-from notolog.app_config import AppConfig
-from notolog.app_package import AppPackage
 
 # 'bin' denotes the PyInstaller-built binary package
 app_package = "bin"
@@ -36,6 +36,9 @@ _ggml_library = None
 
 
 def main():
+    from notolog.app_config import AppConfig
+    from notolog.app_package import AppPackage
+
     # Initialize application logger
     logger = logging.getLogger("init")
 
@@ -83,13 +86,23 @@ def verify_modules():
     """Verify optional modules from inside the frozen application."""
     from notolog.modules.modules import Modules
 
-    expected_modules = {"default", "llama_cpp", "ondevice_llm", "openai_api"}
+    expected_modules = {
+        "default",
+        "llama_cpp",
+        "ondevice_llm",
+        "openai_api",
+        "text_to_speech",
+    }
     available_modules = set(Modules().modules)
     missing_modules = sorted(expected_modules - available_modules)
     if missing_modules:
         raise RuntimeError(
             f"Frozen module verification failed: {', '.join(missing_modules)}"
         )
+
+    import sounddevice
+
+    sounddevice.get_portaudio_version()
 
     from llama_cpp import llama_backend_free, llama_backend_init
 
@@ -100,6 +113,13 @@ def verify_modules():
 
 
 if __name__ == "__main__":
+    # The speech worker runs before application settings and AI backends initialize.
+    if sys.argv[1:] == ["--tts-worker"]:
+        runpy.run_path(
+            str(Path(sys._MEIPASS) / "notolog/modules/text_to_speech/native_worker.py"),
+            run_name="__main__",
+        )
+        raise SystemExit(0)
     main()
     load_llama_cpu_backend()
     if os.environ.get("NOTOLOG_VERIFY_FROZEN_MODULES") == "1":

@@ -63,7 +63,7 @@ GENERIC_LICENSE_MAP = {
 # Mapping of SPDX license identifiers to system license file paths
 SYSTEM_LICENSE_PATH_MAP = {
     "Apache-2.0": "/usr/share/common-licenses/Apache-2.0",
-    "LGPL-3.0-or-later": "/usr/share/common-licenses/GPL-3",
+    "LGPL-3.0-or-later": "/usr/share/common-licenses/LGPL-3",
 }
 
 # Supported dual-license combinations (used to include both license texts if applicable)
