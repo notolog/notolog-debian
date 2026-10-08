@@ -1,0 +1,8 @@
+# Debian Package Builder for Notolog Editor
+# SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
+# SPDX-License-Identifier: MIT
+
+# The release workflow generates this executable from the matching application
+# source retained under src/. Jammy's Lintian cannot associate the generated
+# PyInstaller ELF with that source tree.
+notolog source: source-is-missing pyinstaller/dist/notolog

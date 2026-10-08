@@ -34,6 +34,11 @@
   <update_contact>dev@notolog.app</update_contact>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.2.4" date="2026-11-03">
+      <description>
+        <p>Updated speech synthesis, additional speech languages, and independent Settings window movement.</p>
+      </description>
+    </release>
     <release version="1.2.3" date="2026-09-07">
       <description>
         <p>Local text-to-speech, safer frozen-package validation, and release hardening.</p>

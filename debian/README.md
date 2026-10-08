@@ -9,8 +9,10 @@ Install the required system build dependencies:
 sudo apt-get install build-essential devscripts debhelper lintian zlib1g-dev libegl1 libportaudio2
 ```
 
-Python 3.14 is required to create the standalone executable. Python build
-dependencies are installed into the builder-owned `venv/` directory.
+Release builds use Python 3.14.10 or a newer Python 3.14 maintenance release.
+The build preflight also accepts patched stable Python 3.11–3.13; the selected
+application's dependencies and native compatibility checks still apply.
+Python build dependencies are installed into the builder-owned `venv/` directory.
 
 ## Building the Package
 
@@ -20,8 +22,8 @@ Clone or copy the matching Notolog source into `src/`, then run:
 ```
 
 The script builds and audits the PyInstaller executable before invoking
-`dpkg-buildpackage -us -uc -b`. Set `PYTHON_BIN` when Python 3.14 is not the
-default `python3` executable.
+`dpkg-buildpackage -us -uc -b`. Set `PYTHON_BIN` when the selected interpreter is
+not the default `python3` executable.
 
 ## Cleaning Build Artifacts and Cache
 

@@ -5,13 +5,13 @@ set -Eeuo pipefail
 # SPDX-FileCopyrightText: 2025-2026 Vadim Bakhrenkov
 # SPDX-License-Identifier: MIT
 
-readonly PYINSTALLER_VERSION="6.22.2"
-readonly PIP_VERSION="26.2.1"
-readonly POETRY_CORE_VERSION="2.4.1"
+readonly PYINSTALLER_VERSION="6.22.3"
+readonly PIP_VERSION="26.2.2"
+readonly POETRY_CORE_VERSION="2.5.0"
 readonly BUILD_VERSION="1.6.1"
 readonly PIP_LICENSES_VERSION="5.5.5"
 readonly PIP_AUDIT_VERSION="2.10.1"
-readonly LLAMA_CPP_PYTHON_VERSION="0.3.35"
+readonly LLAMA_CPP_PYTHON_VERSION="0.3.36"
 # Narrow exception for a transitive dependency that the application does not use.
 # The source guard below prevents the exception from covering future API use.
 readonly DISKCACHE_UNUSED_ADVISORY="PYSEC-2026-2447"
@@ -110,6 +110,7 @@ echo "Auditing $TARGET_ARCHITECTURE bundle against the $TARGET_SERIES compatibil
 echo "Building llama.cpp with the '$LLAMA_CPU_PROFILE' CPU profile..."
 echo "Using $LLAMA_BUILD_JOBS parallel job(s) for native compilation..."
 
+"$PYTHON_BIN" "$SCRIPTS_DIR/verify-python.py"
 "$PYI_DIR/clean-build.sh"
 
 echo "Creating isolated build environment with $PYTHON_BIN..."

@@ -12,12 +12,14 @@ the executable is not rebuilt by the Debian package build.
 Preparing and rebuilding
 ------------------------
 
-On an Ubuntu 22.04 amd64 build host, install the packages listed in
-debian/control plus Python 3.14, zlib1g-dev, libegl1, libportaudio2, devscripts,
-and lintian. From a clean builder checkout, populate src/ from the upstream
-release matching debian/changelog:
+For release builds on Ubuntu 22.04 amd64, install the packages listed in
+debian/control plus Python 3.14.10 or a newer Python 3.14 maintenance release,
+zlib1g-dev, libegl1, libportaudio2, devscripts, and lintian. PYTHON_BIN can select
+another patched stable interpreter accepted by the build preflight; application
+dependencies and native compatibility checks still apply. From a clean builder
+checkout, populate src/ from the upstream release matching debian/changelog:
 
-    git clone --depth 1 --branch v1.2.3 \
+    git clone --depth 1 --branch v1.2.4 \
         https://github.com/notolog/notolog-editor.git src
     TARGET_SERIES_OVERRIDE=jammy ./pyinstaller/build.sh
 

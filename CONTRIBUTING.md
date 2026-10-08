@@ -63,11 +63,11 @@ untracked application files cannot enter the package:
 APP_REPOSITORY=/absolute/path/to/notolog-editor
 test ! -e src
 mkdir src
-git -C "$APP_REPOSITORY" archive --format=tar v1.2.3 | tar -x -C src
+git -C "$APP_REPOSITORY" archive --format=tar v1.2.4 | tar -x -C src
 TARGET_SERIES_OVERRIDE=jammy ./pyinstaller/build.sh
 ```
 
-Use `main` instead of `v1.2.3` to test the latest committed main branch. To test
+Use `main` instead of `v1.2.4` to test the latest committed main branch. To test
 tracked working-tree changes as well, apply them before building:
 
 ```bash
@@ -81,7 +81,7 @@ The application version must match the upstream portion of `debian/changelog`.
 Inspect the generated package before installation:
 
 ```bash
-PACKAGE_PATH="../notolog_1.2.3-1ubuntu1_$(dpkg-architecture -qDEB_HOST_ARCH).deb"
+PACKAGE_PATH="../notolog_1.2.4-1ubuntu1_$(dpkg-architecture -qDEB_HOST_ARCH).deb"
 dpkg-deb --info "$PACKAGE_PATH"
 dpkg-deb --contents "$PACKAGE_PATH"
 lintian --pedantic "$PACKAGE_PATH"
@@ -95,9 +95,9 @@ After reviewing the release commit and completing a Launchpad dry run:
 ```bash
 git switch main
 git status --short
-git tag -s v1.2.3-1ubuntu1 -m "Release v1.2.3-1ubuntu1"
+git tag -s v1.2.4-1ubuntu1 -m "Release v1.2.4-1ubuntu1"
 git push origin main
-git push origin v1.2.3-1ubuntu1
+git push origin v1.2.4-1ubuntu1
 ```
 
 Do not move a published tag. Increment the Debian revision for a replacement

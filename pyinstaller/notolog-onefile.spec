@@ -128,6 +128,15 @@ a = Analysis(
     strip=False,  # Do not strip symbols during analysis phase
 )
 
+# PortAudio is loaded from the target system. Keep its C++ runtime on the same
+# side of the ABI boundary: an older bundled runtime can break newer system
+# audio backends such as JACK.
+system_cpp_runtimes = {'libgcc_s.so.1', 'libstdc++.so.6'}
+a.binaries = [
+    entry for entry in a.binaries
+    if Path(entry[0]).name not in system_cpp_runtimes
+]
+
 # Create the PYZ (Python Bytecode) archive
 pyz = PYZ(a.pure)
 

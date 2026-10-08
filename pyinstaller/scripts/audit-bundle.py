@@ -50,6 +50,7 @@ FORBIDDEN_MEMBERS = (
     re.compile(
         r"Qt(?:6)?Multimedia|(^|/)(?:libavcodec|libavformat|libswresample|libportaudio)[^/]*$"
     ),
+    re.compile(r"(^|/)(?:libgcc_s\.so(?:\..*)?|libstdc\+\+\.so(?:\..*)?)$"),
     re.compile(r"(^|/)__pycache__(/|$)"),
     re.compile(r"\.(pyc|pyo)$"),
     re.compile(r"(^|/)direct_url\.json$"),

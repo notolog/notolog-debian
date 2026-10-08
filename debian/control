@@ -18,6 +18,7 @@ Depends:
  ca-certificates,
  curl,
  libportaudio2,
+ libstdc++6,
  libdbus-1-3,
  libegl1,
  libfontconfig1,

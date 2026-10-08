@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Application tag (e.g., v1.2.3). Leave empty for latest release."
+        description: "Application tag (e.g., v1.2.4). Leave empty for latest release."
         required: false
         default: ""
       ubuntu_series:
@@ -69,7 +69,7 @@ concurrency:
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
   APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
-  APP_RELEASE_COMMIT: "35ccbe846cb09777556201bc308a20ab7890e943"
+  APP_RELEASE_COMMIT: "f956469d521990be0a8e3edcf2f0645baa737a79"
   PACKAGE_NAME: "notolog-editor"
 
 jobs:
@@ -132,9 +132,20 @@ jobs:
 
       - name: Verify application release commit
         run: |
+          DEBIAN_VERSION=$(dpkg-parsechangelog --show-field Version)
+          if [ "$PACKAGE_VERSION" != "v${DEBIAN_VERSION%%-*}" ]; then
+            echo "Selected application release does not match the Debian package version" >&2
+            exit 1
+          fi
           ACTUAL_COMMIT=$(git -C src rev-parse HEAD)
           if [ "$ACTUAL_COMMIT" != "$APP_RELEASE_COMMIT" ]; then
-            echo "Application release commit does not match the approved v1.2.3 source" >&2
+            echo "Application release commit does not match the pinned source" >&2
+            exit 1
+          fi
+          timeout 60s git -C src fetch --no-tags --depth=1 origin "refs/tags/$PACKAGE_VERSION"
+          TAG_COMMIT=$(git -C src rev-parse 'FETCH_HEAD^{commit}')
+          if [ "$TAG_COMMIT" != "$APP_RELEASE_COMMIT" ]; then
+            echo "Selected application release tag does not match the pinned source" >&2
             exit 1
           fi
 
@@ -142,11 +153,12 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
+          check-latest: true
 
       - name: Install Python dependencies
         run: |
           python3 --version
-          python3 -m pip install --upgrade "pip==26.2.1"
+          python3 -m pip install --upgrade "pip==26.2.2"
           python3 -m pip install "reuse==6.2.0"
 
       - name: Install build dependencies

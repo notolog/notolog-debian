@@ -44,7 +44,7 @@ class TestLauncherGlibc(unittest.TestCase):
     def test_audio_bundle_excludes_system_and_unused_libraries(self):
         for member in ('PySide6/QtMultimedia.abi3.so', 'PySide6/Qt/lib/libQt6Multimedia.so.6',
                        'libavcodec.so.61', 'libavformat.so.61', 'libswresample.so.5',
-                       'libportaudio.so.2'):
+                       'libportaudio.so.2', 'libgcc_s.so.1', 'libstdc++.so.6'):
             with self.subTest(member=member):
                 self.assertTrue(any(pattern.search(member) for pattern in audit.FORBIDDEN_MEMBERS))
         self.assertFalse(any(pattern.search('_sounddevice.py') for pattern in audit.FORBIDDEN_MEMBERS))

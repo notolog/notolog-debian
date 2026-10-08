@@ -67,7 +67,9 @@ For application bugs or feature requests:
 Text-to-Speech
 --------------
 
-PCM audio playback uses the system PortAudio library. Install the speech runtime and models
-through Text-to-Speech settings; neither is included in this package. Downloads
-belong to the user's data directory and do not require administrator privileges.
+PCM audio playback uses the system PortAudio library. Install NeMo-Speech.cpp 0.2.0
+separately, select its nemo-speech executable in Text-to-Speech settings, and download
+the models from those settings. Neither the runtime nor the models is included in
+this package. Model downloads use the user's data directory by default and do not
+require administrator privileges.
 The speech worker keeps document text and generated audio in memory.

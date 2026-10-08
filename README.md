@@ -69,8 +69,14 @@ sudo apt-get install build-essential zlib1g-dev debhelper devscripts lintian lib
 
 #### Python
 
-Python 3.14 with `venv` support is required. `build.sh` creates a builder-owned
-virtual environment and installs the pinned PyInstaller and Python build tools;
+Release builds use Python 3.14.10 or a newer Python 3.14 maintenance release with
+`venv` support. The build preflight also accepts patched stable Python 3.11–3.13;
+select another interpreter with `PYTHON_BIN`. The selected application's dependency
+requirements and all native compatibility and package checks still apply.
+The patch-level minimums follow the [upstream security releases](https://discuss.python.org/t/109576).
+
+`build.sh` creates a builder-owned virtual environment and installs the pinned
+PyInstaller and Python build tools;
 do not install a separate global PyInstaller for this workflow. Release builds pin
 the llama-cpp-python version used by the runtime-backend adapter so rebuilding a
 builder tag cannot silently select a different native ABI.
@@ -82,7 +88,7 @@ builder tag cannot silently select a different native ABI.
 Clone the matching application release into `src/`, then run the builder from the
 repository root:
 ```bash
-git clone --depth 1 --branch v1.2.3 https://github.com/notolog/notolog-editor.git src
+git clone --depth 1 --branch v1.2.4 https://github.com/notolog/notolog-editor.git src
 ./pyinstaller/build.sh
 ```
 
@@ -119,14 +125,14 @@ specific performance, size, or hardware requirements.
 
 Application and builder tags have different purposes:
 
-* `notolog-editor` uses the upstream application tag, for example `v1.2.3`.
+* `notolog-editor` uses the upstream application tag, for example `v1.2.4`.
 * `notolog-debian` uses the full Debian version, for example
-  `v1.2.3-1ubuntu1`.
+  `v1.2.4-1ubuntu1`.
 
 The builder workflow requires its release tag to equal the version in
 `debian/changelog`. The application source must declare the matching upstream
-version in `pyproject.toml`; builder tag `v1.2.3-1ubuntu1` therefore packages
-application version `1.2.3`. Create the builder tag only after the matching
+version in `pyproject.toml`; builder tag `v1.2.4-1ubuntu1` therefore packages
+application version `1.2.4`. Create the builder tag only after the matching
 application release is public and the builder's Launchpad dry run succeeds.
 
 For a release:
