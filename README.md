@@ -47,6 +47,8 @@ and reuses its executable. Pending uploads count as accepted, even before an APT
 index is published. The workflow skips source-package versions already registered
 in the PPA and prepares only the missing ones. Selecting an individual series uses
 the same archive as `all`.
+Uploads reference an already accepted upstream archive without transferring it
+again; the source artifact still retains that archive for verification and recovery.
 
 A dry run checks source packaging without signing or uploading. A new upstream
 version also runs the complete application build and bundle checks; an existing

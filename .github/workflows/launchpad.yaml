@@ -321,9 +321,11 @@ jobs:
           ORIG_TARBALL="$RUNNER_TEMP/notolog_${UPSTREAM_VERSION}.orig.tar.xz"
           SOURCE_BUILD_DIR=$(mktemp -d "$RUNNER_TEMP/notolog-source-build.XXXXXX")
           if [ -f "$RUNNER_TEMP/ppa-source/notolog_${UPSTREAM_VERSION}.orig.tar.xz" ]; then
+            ORIG_UPLOAD_OPTION="-sd"
             cp "$RUNNER_TEMP/ppa-source/notolog_${UPSTREAM_VERSION}.orig.tar.xz" "$ORIG_TARBALL"
             cp -a "$RUNNER_TEMP/ppa-source/upstream/." "$SOURCE_BUILD_DIR/"
           else
+            ORIG_UPLOAD_OPTION="-sa"
             tar --sort=name \
               --mtime="@${SOURCE_DATE_EPOCH}" \
               --owner=0 --group=0 --numeric-owner \
@@ -383,10 +385,10 @@ jobs:
             echo "Building source package $FULL_VERSION for $SERIES"
 
             if [ "$DRY_RUN" = "true" ]; then
-              (cd "$SOURCE_BUILD_DIR" && dpkg-buildpackage -S -sa -us -uc)
+              (cd "$SOURCE_BUILD_DIR" && dpkg-buildpackage -S "$ORIG_UPLOAD_OPTION" -us -uc)
             else
               (cd "$SOURCE_BUILD_DIR" && \
-                dpkg-buildpackage -S -sa -k"$DEBSIGN_KEYID")
+                dpkg-buildpackage -S "$ORIG_UPLOAD_OPTION" -k"$DEBSIGN_KEYID")
               gpg --verify "$RUNNER_TEMP/notolog_${FULL_VERSION}.dsc"
               gpg --verify "$RUNNER_TEMP/notolog_${FULL_VERSION}_source.changes"
             fi

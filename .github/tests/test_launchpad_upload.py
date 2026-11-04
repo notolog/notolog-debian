@@ -234,9 +234,11 @@ class TestPpaPackaging(unittest.TestCase):
         (reuse / "archive.json").write_text("{}\n")
         self.bin = self.root / "bin"
         self.bin.mkdir()
+        self.build_log = self.root / "build.log"
         build = self.bin / "dpkg-buildpackage"
         build.write_text("""#!/usr/bin/env bash
 set -eu
+printf '%s\\n' "$*" >> "$BUILD_LOG"
 version="$(dpkg-parsechangelog --show-field Version)"
 for suffix in .debian.tar.xz .dsc _source.changes _source.buildinfo; do
   printf 'Synthetic source metadata.\\n' > "../notolog_${version}${suffix}"
@@ -253,6 +255,7 @@ done
             PPA_REVISION="1",
             DRY_RUN="true",
             SOURCE_DATE_EPOCH="0",
+            BUILD_LOG=str(self.build_log),
         )
         return subprocess.run(
             [
@@ -286,6 +289,33 @@ done
         self.assertFalse((package / f"notolog_{VERSIONS[0]}.dsc").exists())
         for version in VERSIONS[1:]:
             self.assertTrue((package / f"notolog_{version}.dsc").is_file())
+        self.assertEqual(
+            self.build_log.read_text().splitlines(), ["-S -sd -us -uc"] * 2
+        )
+
+    def test_new_upstream_upload_includes_original_archive(self):
+        self.archive.unlink()
+        (self.runner / "ppa-source/archive.json").unlink()
+        self.accepted.write_text("")
+        binary = self.project / "pyinstaller/dist/notolog"
+        binary.parent.mkdir(parents=True)
+        binary.write_bytes(b"Synthetic executable; never run.\n")
+        reports = self.project / "pyinstaller/build/reports"
+        reports.mkdir(parents=True)
+        for name in (
+            "build-requirements.txt",
+            "dependency-licenses.md",
+            "notolog-1.2.4.cdx.json",
+        ):
+            (reports / name).write_text("Synthetic build evidence.\n")
+        result = self.package()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            self.build_log.read_text().splitlines(), ["-S -sa -us -uc"] * 3
+        )
+        self.assertTrue(
+            (self.project / "source-package/notolog_1.2.4.orig.tar.xz").is_file()
+        )
 
     def test_all_registered_versions_produce_no_uploads(self):
         self.accepted.write_text("\n".join(VERSIONS) + "\n")
@@ -294,6 +324,7 @@ done
         package = self.project / "source-package"
         self.assertEqual((package / "versions.txt").read_text(), "")
         self.assertFalse(list(package.glob("*_source.changes")))
+        self.assertFalse(self.build_log.exists())
         self.assertIn("nothing to upload", result.stdout)
 
 
