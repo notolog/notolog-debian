@@ -40,9 +40,18 @@ notolog
 The `amd64` PPA workflow targets Jammy (22.04 LTS), Noble (24.04 LTS), and Resolute
 (26.04 LTS). Its default `all` selection builds one application executable and one
 shared upstream source archive, then creates the three series-specific source
-packages using sortable `~ppa1~ubuntu22.04.1`-style versions. A dry run performs the
-complete build and lint checks without signing or uploading; rerun it with dry-run
-mode disabled to publish to the configured PPA.
+packages using sortable `~ppa1~ubuntu22.04.1`-style versions. If the PPA already
+accepted that upstream version, the workflow downloads its original archive,
+verifies its SHA-256 checksum and application source against the pinned release,
+and reuses its executable. Pending uploads count as accepted, even before an APT
+index is published. The workflow skips source-package versions already registered
+in the PPA and prepares only the missing ones. Selecting an individual series uses
+the same archive as `all`.
+
+A dry run checks source packaging without signing or uploading. A new upstream
+version also runs the complete application build and bundle checks; an existing
+version reuses the accepted build. The configured Launchpad owner and PPA must be
+available for both modes so the workflow can check for an existing archive.
 
 GitHub release builds are native for each architecture: `amd64` is built on Ubuntu
 22.04 and targets Ubuntu 22.04 or newer; `arm64` is built on Ubuntu 24.04 and targets
@@ -144,12 +153,23 @@ For a release:
    lint, bundle, frozen-module, GUI smoke, architecture, glibc, and hardening
    checks pass.
 3. Create and push the signed builder tag using the full Debian version.
-4. Run the same Launchpad workflow with `dry_run` disabled. Do not start another
-   publication run until the queued workflow and Launchpad builds finish.
+4. Run the same Launchpad workflow with `dry_run` disabled. Check acceptance for
+   each selected series after transfer. Launchpad's binary builds may remain
+   queued independently of the upload workflow.
 
-Each upload version is immutable. If a published package must be rebuilt, increase
-the Debian revision or rerun with the next `ppa_revision` instead of moving an
-already published tag or reusing an accepted source-package version.
+Each source-package version and upstream archive is immutable. To update Debian
+packaging, increase the Debian revision or `ppa_revision`; the workflow still
+reuses the accepted upstream archive. Replacing the application executable or
+upstream contents requires a new upstream version. Do not move a published tag.
+
+If an upload stops after one series succeeds, rerun with the same application
+version and `ppa_revision`, choosing `all` or a missing series. Accepted versions
+are skipped, and missing versions reference the original archive already held by
+Launchpad. Increasing `ppa_revision` alone cannot resolve a conflicting
+`.orig.tar.xz`: the archive belongs to the upstream version, not the series or
+Debian revision. Transfer retries resend the same signed files. Source artifacts
+are retained before upload for recovery. Check Launchpad's acceptance and build
+status separately from the workflow's transfer result.
 
 To remove builder-owned generated artifacts:
 ```bash

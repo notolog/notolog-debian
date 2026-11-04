@@ -52,7 +52,7 @@ on:
         required: false
         default: "ppa"
       ppa_revision:
-        description: "PPA rebuild revision; start at 1 and increment after an accepted upload"
+        description: "Debian packaging revision; increment to replace an accepted series package"
         required: true
         default: "1"
       dry_run:
@@ -166,7 +166,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential zlib1g-dev debhelper devscripts lintian dput xxd libegl1 libportaudio2
 
+      - name: Resolve PPA source archive
+        id: upstream
+        env:
+          LP_USERNAME: ${{ secrets.LP_USERNAME }}
+          PPA_NAME: ${{ github.event.inputs.ppa_name }}
+        run: |
+          timeout --signal=TERM --kill-after=30s 1200s \
+            python3 .github/scripts/launchpad-source.py \
+              --owner "$LP_USERNAME" --ppa "$PPA_NAME" \
+              --version "${PACKAGE_VERSION#v}" --source src \
+              --output "$RUNNER_TEMP/ppa-source" --github-output "$GITHUB_OUTPUT"
+
       - name: Build PyInstaller binary with PIE hardening
+        if: ${{ steps.upstream.outputs.reuse != 'true' }}
         env:
           LLAMA_CPU_PROFILE: "runtime"
           SKIP_DEB_BUILD: "true" # We only need the binary, not the .deb
@@ -307,26 +320,30 @@ jobs:
           UPSTREAM_VERSION=$(dpkg-parsechangelog --show-field Version | cut -d- -f1)
           ORIG_TARBALL="$RUNNER_TEMP/notolog_${UPSTREAM_VERSION}.orig.tar.xz"
           SOURCE_BUILD_DIR=$(mktemp -d "$RUNNER_TEMP/notolog-source-build.XXXXXX")
-          tar --sort=name \
-            --mtime="@${SOURCE_DATE_EPOCH}" \
-            --owner=0 --group=0 --numeric-owner \
-            --pax-option=delete=atime,delete=ctime \
-            --create --xz --file="$ORIG_TARBALL" \
-            --exclude-vcs \
-            --exclude='./.github' \
-            --exclude='./build' \
-            --exclude='./debian' \
-            --exclude='./node_modules' \
-            --exclude='./pyinstaller/build' \
-            --exclude='./pyinstaller/pyi-source' \
-            --exclude='./source-package' \
-            --exclude='./venv' \
-            --exclude='./.venv' \
-            --exclude='__pycache__' \
-            --exclude='*.pyc' \
-            .
-
-          tar --extract --xz --file="$ORIG_TARBALL" --directory="$SOURCE_BUILD_DIR"
+          if [ -f "$RUNNER_TEMP/ppa-source/notolog_${UPSTREAM_VERSION}.orig.tar.xz" ]; then
+            cp "$RUNNER_TEMP/ppa-source/notolog_${UPSTREAM_VERSION}.orig.tar.xz" "$ORIG_TARBALL"
+            cp -a "$RUNNER_TEMP/ppa-source/upstream/." "$SOURCE_BUILD_DIR/"
+          else
+            tar --sort=name \
+              --mtime="@${SOURCE_DATE_EPOCH}" \
+              --owner=0 --group=0 --numeric-owner \
+              --pax-option=delete=atime,delete=ctime \
+              --create --xz --file="$ORIG_TARBALL" \
+              --exclude-vcs \
+              --exclude='./.github' \
+              --exclude='./build' \
+              --exclude='./debian' \
+              --exclude='./node_modules' \
+              --exclude='./pyinstaller/build' \
+              --exclude='./pyinstaller/pyi-source' \
+              --exclude='./source-package' \
+              --exclude='./venv' \
+              --exclude='./.venv' \
+              --exclude='__pycache__' \
+              --exclude='*.pyc' \
+              .
+            tar --extract --xz --file="$ORIG_TARBALL" --directory="$SOURCE_BUILD_DIR"
+          fi
           cp -a debian "$SOURCE_BUILD_DIR/debian"
           if find "$SOURCE_BUILD_DIR" -type d \
             \( -name venv -o -name .venv \) -print -quit | grep -q .; then
@@ -355,6 +372,10 @@ jobs:
             BASE_VERSION=$(dpkg-parsechangelog \
               --file "$SOURCE_BUILD_DIR/debian/changelog" --show-field Version)
             FULL_VERSION="${BASE_VERSION}~ppa${PPA_REVISION}~ubuntu${SERIES_VERSION}.1"
+            if grep -Fxq "$FULL_VERSION" "$RUNNER_TEMP/ppa-source/accepted-versions.txt"; then
+              echo "Skipping $SERIES: source version $FULL_VERSION is already registered in the PPA"
+              continue
+            fi
             sed -i "1s/${BASE_VERSION}/${FULL_VERSION}/" \
               "$SOURCE_BUILD_DIR/debian/changelog"
             sed -i "1s/) [^;]*;/) ${SERIES};/" \
@@ -380,12 +401,19 @@ jobs:
           cp "$ORIG_TARBALL" "$PACKAGE_STAGING_DIR/"
           mkdir source-package
           cp "$PACKAGE_STAGING_DIR"/* source-package/
-          mkdir source-package/build-evidence
-          cp pyinstaller/build/reports/build-requirements.txt source-package/build-evidence/
-          cp pyinstaller/build/reports/dependency-licenses.md source-package/build-evidence/
-          cp "pyinstaller/build/reports/notolog-${UPSTREAM_VERSION}.cdx.json" source-package/build-evidence/
+          if [ -f "$RUNNER_TEMP/ppa-source/archive.json" ]; then
+            cp "$RUNNER_TEMP/ppa-source/archive.json" source-package/
+          else
+            mkdir source-package/build-evidence
+            cp pyinstaller/build/reports/build-requirements.txt source-package/build-evidence/
+            cp pyinstaller/build/reports/dependency-licenses.md source-package/build-evidence/
+            cp "pyinstaller/build/reports/notolog-${UPSTREAM_VERSION}.cdx.json" source-package/build-evidence/
+          fi
           echo "Source package files created:"
           ls -lh source-package/
+          if [ ! -s source-package/versions.txt ]; then
+            echo "All selected source versions are already registered; nothing to upload."
+          fi
 
       - name: Verify source package contains binary
         run: |
@@ -405,6 +433,14 @@ jobs:
             echo "Linting $FULL_VERSION for $SERIES"
             lintian --fail-on error "source-package/notolog_${FULL_VERSION}.dsc"
           done < source-package/versions.txt
+
+      - name: Preserve source artifacts
+        if: ${{ always() && hashFiles('source-package/*_source.changes') != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: source-package-${{ env.PACKAGE_VERSION }}
+          path: source-package/
+          if-no-files-found: error
 
       - name: Configure dput
         if: ${{ github.event.inputs.dry_run != 'true' }}
@@ -429,19 +465,40 @@ jobs:
           method = ftp
           incoming = ~$LP_USERNAME/$PPA_NAME/ubuntu/
           login = anonymous
+          passive_ftp = 1
           allow_unsigned_uploads = 0
           EOF
           echo "dput configuration created"
 
       - name: Upload to PPA
-        if: ${{ github.event.inputs.dry_run != 'true' }}
+        if: ${{ github.event.inputs.dry_run != 'true' && hashFiles('source-package/*_source.changes') != '' }}
         env:
           LP_USERNAME: ${{ secrets.LP_USERNAME }}
           PPA_NAME: ${{ github.event.inputs.ppa_name }}
         run: |
           while IFS='=' read -r SERIES FULL_VERSION; do
             echo "Uploading $FULL_VERSION to $SERIES..."
-            dput notolog-ppa "source-package/notolog_${FULL_VERSION}_source.changes"
+            CHANGES_FILE="source-package/notolog_${FULL_VERSION}_source.changes"
+            for SIGNED_FILE in "source-package/notolog_${FULL_VERSION}.dsc" "$CHANGES_FILE"; do
+              if ! gpg --batch --verify "$SIGNED_FILE" >/dev/null 2>&1; then
+                echo "Signature verification failed for $SIGNED_FILE; upload stopped" >&2
+                exit 1
+              fi
+            done
+            for ATTEMPT in 1 2 3; do
+              if timeout --signal=TERM --kill-after=30s 1200s \
+                  dput notolog-ppa "$CHANGES_FILE"; then
+                break
+              else
+                UPLOAD_STATUS=$?
+              fi
+              if [ "$ATTEMPT" -eq 3 ]; then
+                echo "Upload failed for $SERIES; retain the source artifact for recovery" >&2
+                exit "$UPLOAD_STATUS"
+              fi
+              echo "Upload attempt $ATTEMPT failed for $SERIES; retrying the same signed files..." >&2
+              sleep "$((ATTEMPT * 15))"
+            done
           done < source-package/versions.txt
           echo ""
           echo "✅ Upload complete!"
@@ -454,13 +511,6 @@ jobs:
           echo "🔍 DRY RUN - Skipping PPA upload"
           echo "Source package was built successfully but not uploaded."
           ls -lh source-package/
-
-      - name: Upload source artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: source-package-${{ env.PACKAGE_VERSION }}
-          path: source-package/
-          if-no-files-found: error
 
       - name: Validate changelog
         run: dpkg-parsechangelog

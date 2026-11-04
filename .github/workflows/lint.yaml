@@ -50,6 +50,9 @@ jobs:
       - name: Test bundle audit
         run: python -m unittest discover -s pyinstaller/tests -v
 
+      - name: Test PPA upload handling
+        run: python -m unittest discover -s .github/tests -v
+
       - name: Shellcheck scripts
         run: |
           sudo apt-get install -y shellcheck
