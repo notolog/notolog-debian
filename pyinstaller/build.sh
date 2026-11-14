@@ -239,7 +239,7 @@ if [ ! -f "$SMOKE_CONFIG_DIR/Notolog/notolog_editor_bin.conf" ]; then
     exit 1
 fi
 if [ -e "$SMOKE_CONFIG_DIR/Notolog/notolog_editor.conf" ]; then
-    echo "Error: bundled app wrote to the development settings file" >&2
+    echo "Error: bundled app wrote to the non-bundled settings file" >&2
     exit 1
 fi
 
@@ -321,7 +321,7 @@ else
         exit 1
     fi
     if [ -e "$PACKAGE_CONFIG_DIR/Notolog/notolog_editor.conf" ]; then
-        echo "Error: packaged app wrote to the development settings file" >&2
+        echo "Error: packaged app wrote to the non-bundled settings file" >&2
         exit 1
     fi
 fi

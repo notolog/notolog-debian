@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       version_override:
-        description: "Application tag (e.g., v1.2.4). Leave empty for latest release."
+        description: "Application tag (e.g., v1.2.5). Leave empty for latest release."
         required: false
         default: ""
       ubuntu_series:
@@ -69,7 +69,7 @@ concurrency:
 env:
   APP_GIT_REPOSITORY: "notolog/notolog-editor"
   APP_RELEASES_URL: "https://api.github.com/repos/notolog/notolog-editor/releases"
-  APP_RELEASE_COMMIT: "f956469d521990be0a8e3edcf2f0645baa737a79"
+  APP_RELEASE_COMMIT: "72bf5dce32bd1d3a6a7614c5cf64e7ca8bdaa39b"
   PACKAGE_NAME: "notolog-editor"
 
 jobs:

@@ -88,6 +88,7 @@ REQUIRED_PYZ_MODULES = {
     "sounddevice",
     "_sounddevice",
     "notolog.fenced_code_extension",
+    "notolog.shortcuts",
     "notolog.modules.text_to_speech.audio_output",
     "notolog.modules.text_to_speech.module_core",
     "notolog.modules.text_to_speech.i18n",

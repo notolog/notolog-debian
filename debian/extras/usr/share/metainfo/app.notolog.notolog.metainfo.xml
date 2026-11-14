@@ -34,6 +34,11 @@
   <update_contact>dev@notolog.app</update_contact>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="1.2.5" date="2026-11-14">
+      <description>
+        <p>Go to line navigation, a Workspace hotkey reference, consistent heading spacing, and clearer speech actions.</p>
+      </description>
+    </release>
     <release version="1.2.4" date="2026-11-03">
       <description>
         <p>Updated speech synthesis, additional speech languages, and independent Settings window movement.</p>

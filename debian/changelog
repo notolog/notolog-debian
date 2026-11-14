@@ -1,3 +1,13 @@
+notolog (1.2.5-1ubuntu1) resolute; urgency=medium
+
+  * Update Notolog Editor to version 1.2.5.
+  * Include Go to line, the Workspace hotkey reference, and improved speech
+    action translations.
+  * Use PySide6 Essentials 6.12, ONNX Runtime GenAI 0.19, and
+    Python-Markdown 3.11.3.
+
+ -- Vadim Bakhrenkov <dev@notolog.app>  Sat, 14 Nov 2026 00:00:00 +0000
+
 notolog (1.2.4-1ubuntu1) resolute; urgency=medium
 
   * Update Notolog Editor to version 1.2.4.

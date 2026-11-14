@@ -99,7 +99,7 @@ builder tag cannot silently select a different native ABI.
 Clone the matching application release into `src/`, then run the builder from the
 repository root:
 ```bash
-git clone --depth 1 --branch v1.2.4 https://github.com/notolog/notolog-editor.git src
+git clone --depth 1 --branch v1.2.5 https://github.com/notolog/notolog-editor.git src
 ./pyinstaller/build.sh
 ```
 
@@ -136,15 +136,20 @@ specific performance, size, or hardware requirements.
 
 Application and builder tags have different purposes:
 
-* `notolog-editor` uses the upstream application tag, for example `v1.2.4`.
+* `notolog-editor` uses the upstream application tag, for example `v1.2.5`.
 * `notolog-debian` uses the full Debian version, for example
-  `v1.2.4-1ubuntu1`.
+  `v1.2.5-1ubuntu1`.
 
 The builder workflow requires its release tag to equal the version in
 `debian/changelog`. The application source must declare the matching upstream
-version in `pyproject.toml`; builder tag `v1.2.4-1ubuntu1` therefore packages
-application version `1.2.4`. Create the builder tag only after the matching
+version in `pyproject.toml`; builder tag `v1.2.5-1ubuntu1` therefore packages
+application version `1.2.5`. Create the builder tag only after the matching
 application release is public and the builder's Launchpad dry run succeeds.
+
+For each application release, set `APP_RELEASE_COMMIT` in both
+`.github/workflows/build.yaml` and `.github/workflows/launchpad.yaml` to the same
+full commit SHA from the public application tag. Both workflows verify that the
+tag resolves to that pinned commit and matches the Debian changelog version.
 
 For a release:
 

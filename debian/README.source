@@ -19,7 +19,7 @@ another patched stable interpreter accepted by the build preflight; application
 dependencies and native compatibility checks still apply. From a clean builder
 checkout, populate src/ from the upstream release matching debian/changelog:
 
-    git clone --depth 1 --branch v1.2.4 \
+    git clone --depth 1 --branch v1.2.5 \
         https://github.com/notolog/notolog-editor.git src
     TARGET_SERIES_OVERRIDE=jammy ./pyinstaller/build.sh
 
